@@ -1,6 +1,7 @@
 #include "hardware/gpio.h"
 
 #include "pinmap.h"
+#include "screen_example.h"
 
 
 // ROM 0x0038 addr = IM1 IRQ ISR
@@ -34,7 +35,7 @@ static inline void yield_mem(uint32_t n) {
 
 uint16_t emu_z80_pc = 0;  // this program counter is actually not used in the code
 
-void __core0_func(emu_prog_border)() {
+void __core0_func(emu_border_screen)() {
     for (int i = 0; i < 32; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_IN);
@@ -58,10 +59,17 @@ void __core0_func(emu_prog_border)() {
         emu_z80_pc = 0;
         // assume the RESET has been deactivated (is high now to let CPU run) and CPU starts from 0x0000
         yield_di();  // disable interrupts to avoid CPU jumping to 0x0038 on its own     
-    clear_screen:
-        for (int i = 16384; i < 23296; i++) {
-            yield_ld_hl_nn(i);
+    load_screen:
+        // clear screen (test)
+        for (int i = 0; i < 6912; i++) {
+            yield_ld_hl_nn(i+16384);
             yield_ld_ref_hl_n(0xFF);
+            yield_dummy_jump();  // dummy jump to avoid the CPU to increment PC too much
+        }
+        // load sample screen
+        for (int i = 0; i < 6912; i++) {
+            yield_ld_hl_nn(i+16384);
+            yield_ld_ref_hl_n(screen_example[i]);
             yield_dummy_jump();  // dummy jump to avoid the CPU to increment PC too much
         }
     loop:

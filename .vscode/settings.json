@@ -40,5 +40,6 @@
         "timer.h": "c",
         "cstdint": "c",
         "pinmap.h": "c"
-    }
+    },
+    "cortex-debug.variableUseNaturalFormat": false
 }

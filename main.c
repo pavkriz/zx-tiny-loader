@@ -7,12 +7,14 @@
 #define __core1_func(x) __scratch_y(__STRING(x)) x
 #define __core0_func(x) __scratch_x(__STRING(x)) x
 
+#define RUN_SNAPSHOT_LOADER
 
-
-#ifdef RUN_LOGIC_ANALYZER
+#if defined(RUN_LOGIC_ANALYZER)
 #include "logic_analyzer.c"
-#else
-#include "emu.c"
+#elif defined(RUN_EMU_BORDER_SCREEN)
+#include "emu_border_screen.c"
+#elif defined(RUN_SNAPSHOT_LOADER)
+#include "snapshot_loader.c"
 #endif
 
 int main() {
@@ -36,10 +38,12 @@ int main() {
 
     //multicore_launch_core1(logic_analyzer_core1_entry);
 
-    #ifdef RUN_LOGIC_ANALYZER
+    #if defined(RUN_LOGIC_ANALYZER)
     logic_analyzer_entry();
-    #else
-    emu_prog_border();
+    #elif defined(RUN_EMU_BORDER_SCREEN)
+    emu_border_screen();
+    #elif defined(RUN_SNAPSHOT_LOADER)
+    snapshot_loader();
     #endif
 
     while (1) {
