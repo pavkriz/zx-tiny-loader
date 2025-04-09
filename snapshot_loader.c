@@ -1,8 +1,8 @@
 #include "hardware/gpio.h"
 
 #include "pinmap.h"
-#include "test_snapshot_z80.h"
-#include "test_snapshot_ram.h"
+#include "test_snapshot_z80_hate.h"
+#include "test_snapshot_ram_hate.h"
 
 
 // ROM 0x0038 addr = IM1 IRQ ISR
@@ -177,6 +177,7 @@ uint8_t highByte(uint16_t n) {
 
 int create_bootstrap_machine_code(snap_state_t *snap_state)
 {
+    // TODO restore border from out_ula
   int pc=0;
   z80mc[pc++] = 0xF3; /* DI */
 
