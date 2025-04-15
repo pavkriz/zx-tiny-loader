@@ -9,7 +9,9 @@
 
 #define RUN_SNAPSHOT_LOADER
 
-#if defined(RUN_LOGIC_ANALYZER)
+#if defined(USE_EMU_Z80)
+#include "src/emu_z80/shadow_emu.h"
+#elif defined(RUN_LOGIC_ANALYZER)
 #include "logic_analyzer.c"
 #elif defined(RUN_EMU_BORDER_SCREEN)
 #include "emu_border_screen.c"
@@ -38,7 +40,9 @@ int main() {
 
     //multicore_launch_core1(logic_analyzer_core1_entry);
 
-    #if defined(RUN_LOGIC_ANALYZER)
+    #if defined(USE_EMU_Z80)
+    shadow_emulator();
+    #elif defined(RUN_LOGIC_ANALYZER)
     logic_analyzer_entry();
     #elif defined(RUN_EMU_BORDER_SCREEN)
     emu_border_screen();

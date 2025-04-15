@@ -37,6 +37,8 @@ pico_sdk_init()
 
 add_executable(zx_tiny_loader
         main.c
+        src/emu_z80/picolib_emu/emu.c
+        src/emu_z80/shadow_emu.c
         )
 
 # Add pico_multicore which is required for multicore functionality
@@ -47,6 +49,8 @@ target_link_libraries(zx_tiny_loader
 target_compile_definitions(zx_tiny_loader PRIVATE
         PICO_DEFAULT_UART_TX_PIN=44
         PICO_DEFAULT_UART_RX_PIN=45
+        USE_EMU
+        USE_EMU_Z80
         ) 
 
 # create map/bin/hex file etc.

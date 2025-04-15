@@ -39,7 +39,13 @@
     "files.associations": {
         "timer.h": "c",
         "cstdint": "c",
-        "pinmap.h": "c"
+        "pinmap.h": "c",
+        "cstring": "c",
+        "variant": "c",
+        "picolib_scaffold.h": "c",
+        "stdint.h": "c",
+        "emu.h": "c",
+        "stdio.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
