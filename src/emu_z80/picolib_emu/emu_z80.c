@@ -1493,8 +1493,6 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
 
 		// EI
 		case 0xFB:
-			printMemoryM1ReadCounter();
-			printf("EI ===========================================\n");
 			cpu->iff1 = 1;
 			cpu->iff2 = 1;
 			cpu->tid = 1; // temporary disable interrupt (to disable 1 next instruction)

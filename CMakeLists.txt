@@ -37,6 +37,7 @@ pico_sdk_init()
 
 add_executable(zx_tiny_loader
         main.c
+        src/emu_z80/emu_z80_debug.c
         src/emu_z80/picolib_emu/emu.c
         src/emu_z80/shadow_emu.c
         )

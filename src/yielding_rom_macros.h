@@ -34,9 +34,27 @@ static INLINE void yield_mem(uint32_t n) {
 #define yield_push_de() {yield_m1(0xD5);}
 #define yield_push_hl() {yield_m1(0xE5);}
 
+#define wait_z80_cycles(n) busy_wait_at_least_cycles(n*300000000/3500000); // wait for 1 Z80 cycle (assuming 3.5MHz Z80 clock and 300MHz Pico clock)
+
 static INLINE uint8_t sniff_mem_wr() {
     while (gpio_get(PIN_NUMBER_WR) != 0) { }    /* wait for WR to go low (indicating a write operation) */ \
     uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
     while (gpio_get(PIN_NUMBER_WR) == 0) { }    /* wait for WR to go high (indicating the end of write operation) */ \
+    return val;
+}
+
+static INLINE uint8_t sniff_mem_rd() {
+    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
+    wait_z80_cycles(1.2); // wait for RAM to respond
+    uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
+    return val;
+}
+
+static INLINE uint8_t sniff_io_rd() {
+    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
+    wait_z80_cycles(2.2); // wait for IO to respond, there is extra WAIT state in IO read
+    uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
     return val;
 }

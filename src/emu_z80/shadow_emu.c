@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "../yielding_rom_macros.h"
 #include "hardware/timer.h"
+#include "emu_z80_debug.h"
 
 
 sZ80	z80cpu;
@@ -16,9 +17,13 @@ u8 Memory[Z80_MEMSIZE]; // memory 64 KB
 u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 {
 	// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
-	while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
+	u8 real_val = sniff_mem_rd();
 	u8 val = Memory[addr];
-	while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
+	if (real_val != val) {
+		printf("Emulation brain split - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
+		printMemoryM1ReadCounter();
+		while (1) { } // stop here
+	}
 	return val;
 }
 
@@ -33,10 +38,7 @@ void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
 // read port
 u8 FASTCODE NOFLASH(EmuGetPort)(u16 addr)
 {
-	while (gpio_get(PIN_BIT_RD) == 1) { }    /* wait for RD to go low (indicating a read operation) */ \
-	printf("Read from port: %04X\n", addr);
-	// TODO read value from DATA bus
-	return 0;
+	return sniff_io_rd();
 }
 
 // write port

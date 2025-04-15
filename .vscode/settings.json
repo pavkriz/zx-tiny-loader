@@ -45,7 +45,9 @@
         "picolib_scaffold.h": "c",
         "stdint.h": "c",
         "emu.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "emu_z80_debug.h": "c",
+        "shadow_emu.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
