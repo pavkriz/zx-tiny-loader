@@ -47,7 +47,11 @@
         "emu.h": "c",
         "stdio.h": "c",
         "emu_z80_debug.h": "c",
-        "shadow_emu.h": "c"
+        "shadow_emu.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "span": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

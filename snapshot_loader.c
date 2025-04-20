@@ -173,6 +173,7 @@ int create_bootstrap_machine_code(snap_state_t *snap_state)
 
   z80mc[pc++] = 0xE5; /* push hl */
   z80mc[pc++] = 0xF1; /* pop af */
+  // TODO add 2 sniff_mem_rd() here somehow to skip two reads from memory caused by POP AF
   
   z80mc[pc++] = 0x01; /* ld bc, NNNN */
   z80mc[pc++] = lowByte(snap_state->bc_);
@@ -195,6 +196,7 @@ int create_bootstrap_machine_code(snap_state_t *snap_state)
 
   z80mc[pc++] = 0xE5; /* push hl */
   z80mc[pc++] = 0xF1; /* pop af */
+  // TODO add 2 sniff_mem_rd() here somehow to skip two reads from memory caused by POP AF
   
   z80mc[pc++] = 0x01; /* ld bc, NNNN */
   z80mc[pc++] = lowByte(snap_state->bc);

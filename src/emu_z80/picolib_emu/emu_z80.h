@@ -107,10 +107,13 @@ typedef struct {
 	pEmu16Write8	writemem;	// 0x34: write byte to memory
 	pEmu16Read8	readport;	// 0x38: read byte from port
 	pEmu16Write8	writeport;	// 0x3C: write byte to port
-
+	u32 processing_m1_opcode;
+	u32 processing_m1_pc;
+	u32 previous_m1_opcode;
+	u32 previous_m1_pc;
 } sZ80;
 
-STATIC_ASSERT(sizeof(sZ80) == 0x40, "Incorrect sZ80!");
+STATIC_ASSERT(sizeof(sZ80) == 0x50, "Incorrect sZ80!");
 
 // current CPU descriptor (NULL = not running)
 extern volatile sZ80* Z80_Cpu;

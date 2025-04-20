@@ -91,8 +91,22 @@ typedef unsigned char Bool;
 #define PWM_GetClock(a) 0
 
 // TODO these should do something but now do nothing
-#define cb() 0
-#define dsb() 0
+// compiler barrier
+INLINE void cb(void)
+{
+	__asm volatile ("" ::: "memory");
+}
+
+// data synchronization barrier
+INLINE void dsb(void)
+{
+#if RISCV
+	__asm volatile (" fence rw, rw\n" ::: "memory");
+#else // ARM
+	__asm volatile (" dsb\n" ::: "memory");
+#endif
+}
+
 // for now, we do not use the second core of RP2040 and run the emulator on core 0
 #define Core1Exec(a) a()
 #define Core1Reset() 0

@@ -12,8 +12,8 @@
 #define SAVE_ROM_ADDR_FOR_LOOPS 0x0100  
 // yield operations wait for CPU for memory or IO read and put the data to DATA bus (regardless of actual ADDRESS bus state)
 static INLINE void yield_mem(uint32_t n) {
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
     gpio_put_masked(PIN_BITS_DATA, n);          /* put data to DATA bus */ \
+    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
     gpio_set_dir_out_masked(PIN_BITS_DATA);     /* set DATA bus to output */ \
     while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
     gpio_set_dir_in_masked(PIN_BITS_DATA);      /* set DATA bus to input (nout output) */
@@ -33,28 +33,65 @@ static INLINE void yield_mem(uint32_t n) {
 #define yield_push_bc() {yield_m1(0xC5);}
 #define yield_push_de() {yield_m1(0xD5);}
 #define yield_push_hl() {yield_m1(0xE5);}
+#define yield_pop_af() {yield_m1(0xF1);}
+#define yield_exx() {yield_m1(0xD9);}
+#define yield_exx_af_af2() {yield_m1(0x08);}
+#define yield_ld_nn_sp(nn) {yield_m1(0xED); yield_mem(0x73); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_sp_nn(nn) {yield_m1(0x31); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_hl_nn(nn) {yield_m1(0x21); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_bc_nn(nn) {yield_m1(0x01); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_de_nn(nn) {yield_m1(0x11); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_ix_nn(nn) {yield_m1(0xDD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_iy_nn(nn) {yield_m1(0xFD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
+#define yield_ld_i_a() { yield_m1(0xED); yield_mem(0x47); }
+#define yield_ld_r_a() { yield_m1(0xED); yield_mem(0x5F); }
 
 #define wait_z80_cycles(n) busy_wait_at_least_cycles(n*300000000/3500000); // wait for 1 Z80 cycle (assuming 3.5MHz Z80 clock and 300MHz Pico clock)
 
-static INLINE uint8_t sniff_mem_wr() {
-    while (gpio_get(PIN_NUMBER_WR) != 0) { }    /* wait for WR to go low (indicating a write operation) */ \
+static INLINE FASTCODE uint8_t sniff_mem_wr() {
+    while (gpio_get(PIN_NUMBER_WR) != 0) { }    /* wait for WR to go low (indicating a write operation) */
     uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    while (gpio_get(PIN_NUMBER_WR) == 0) { }    /* wait for WR to go high (indicating the end of write operation) */ \
+    while (gpio_get(PIN_NUMBER_WR) == 0) { }    /* wait for WR to go high (indicating the end of write operation) */
     return val;
 }
 
-static INLINE uint8_t sniff_mem_rd() {
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
+static INLINE FASTCODE uint8_t sniff_mem_rd_fast() {
+    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
     wait_z80_cycles(1.2); // wait for RAM to respond
     uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
+    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */
     return val;
 }
 
-static INLINE uint8_t sniff_io_rd() {
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
-    wait_z80_cycles(2.2); // wait for IO to respond, there is extra WAIT state in IO read
-    uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
-    return val;
+
+static INLINE FASTCODE uint8_t sniff_mem_rd() {
+    // int c1 = 0;
+    // int c2 = 0;
+    while (gpio_get(PIN_NUMBER_RD) != 0) {  }    /* wait for RD to go low (indicating a read operation) */ 
+    //wait_z80_cycles(1); // wait for RAM to respond
+    // instead of waiting, read the DATA bus until RD goes high
+    uint32_t val = 0;
+    uint32_t val_prev = 0;
+    do {
+         val_prev = val;
+        val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    //     c2++;
+    } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */ 
+    //while (gpio_get(PIN_NUMBER_RD) == 0) {  }    /* wait for RD to go high (indicating the end of read operation) */
+    // printf("sniff_mem_rd: c1=%d, c2=%d\n", c1, c2);
+    return val_prev;
+}
+
+static INLINE FASTCODE uint8_t sniff_io_rd() {
+    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
+    //wait_z80_cycles(2.2); // wait for IO to respond, there is extra WAIT state in IO read
+    // instead of waiting, read the DATA bus until RD goes high
+    uint8_t val = 0;
+    uint8_t val_prev = 0;
+    do {
+        val_prev = val;
+        val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
+    //while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */
+    return val_prev;
 }

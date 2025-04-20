@@ -4,10 +4,15 @@
 #include "../yielding_rom_macros.h"
 
 uint32_t memoryM1ReadCounter = 0;
+uint32_t memoryM1ReadSinceIrqCounter = 0;
+uint32_t irqCounter = 0;
+bool irqAppeared = false;
 
 
 void FASTCODE NOFLASH(printMemoryM1ReadCounter)() {
 	printf("Memory read counter: %u\n", memoryM1ReadCounter);
+	printf("Memory read since IRQ counter: %u\n", memoryM1ReadSinceIrqCounter);
+	printf("IRQ counter: %u\n", irqCounter);
 }
 
 void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
@@ -49,6 +54,10 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			uint8_t pc_h = sniff_mem_wr();
 			uint8_t pc_l = sniff_mem_wr();
 			uint16_t pc = (((uint16_t)pc_h << 8) | (uint16_t)pc_l) - 3; // 3=length of CALL instruction that adds artificially 3 to PC
+			yield_ld_nn_sp(0x8000);  // store SP to "some" address and sniff the value
+			uint8_t sp_l = sniff_mem_wr();  // here is LOW first
+			uint8_t sp_h = sniff_mem_wr();
+			uint16_t sp = (((uint16_t)sp_h << 8) | (uint16_t)sp_l) + 2;  // 2=length of return adress of CALL instruction that is used few lines above
 			yield_push_af();
 			// now read DATA bus on each write to get the A and F value beeing pushed to stack (store to RAM)
 			uint8_t a = sniff_mem_wr();
@@ -62,22 +71,42 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			yield_push_hl();
 			uint8_t h = sniff_mem_wr();
 			uint8_t l = sniff_mem_wr();
+			yield_exx();
+			yield_push_bc();
+			uint8_t b2 = sniff_mem_wr();			
+			uint8_t c2 = sniff_mem_wr();
+			yield_push_de();
+			uint8_t d2 = sniff_mem_wr();
+			uint8_t e2 = sniff_mem_wr();
+			yield_push_hl();
+			uint8_t h2 = sniff_mem_wr();
+			uint8_t l2 = sniff_mem_wr();
 			printf("==========================\n");
 			printMemoryM1ReadCounter();
 			printf("Real PC: %04X\n", pc);
+			printf("Real SP: %04X\n", sp);
 			printf("Real A: %02X\n", a);
-			printf("Real F: %02X\n", f & 0b11010111);
+			//printf("Real F: %02X\n", f & 0b11010111);
+			printf("Real F: %02X\n", f);
 			printf("Real BC: %04X\n", (b << 8) | c);
 			printf("Real DE: %04X\n", (d << 8) | e);
 			printf("Real HL: %04X\n", (h << 8) | l);
+			printf("Real BC': %04X\n", (b2 << 8) | c2);
+			printf("Real DE': %04X\n", (d2 << 8) | e2);
+			printf("Real HL': %04X\n", (h2 << 8) | l2);
 			// print our emulated Z80 registers and stop emulation
 			printf("Emulation stopped\n");
 			printf("PC:\t%04X\n", z80cpu->pc);
+			printf("SP:\t%04X\n", z80cpu->sp);
 			printf("A:\t%02X\n", z80cpu->a);
-			printf("F:\t%02X\n", z80cpu->f & 0b11010111);
+			//printf("F:\t%02X\n", z80cpu->f & 0b11010111);
+			printf("F:\t%02X\n", z80cpu->f);
 			printf("BC:\t%04X\n", z80cpu->bc);
 			printf("DE:\t%04X\n", z80cpu->de);
 			printf("HL:\t%04X\n", z80cpu->hl);
+			printf("BC':\t%04X\n", z80cpu->bc2);
+			printf("DE':\t%04X\n", z80cpu->de2);
+			printf("HL':\t%04X\n", z80cpu->hl2);
 			printf("IFF1:\t%02X\n", z80cpu->iff1);
 			printf("IFF2:\t%02X\n", z80cpu->iff2);
 			// and stop
@@ -87,10 +116,28 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 void FASTCODE NOFLASH(EmuDebugHookPreM1)(sZ80* z80cpu) {
     //if (memoryM1ReadCounter > 458975) {
 	//if (memoryM1ReadCounter > 10) {
-	if (memoryM1ReadCounter >= 1000000) {
-			dumpRegisters(z80cpu);
-	} else {
+	//if (memoryM1ReadCounter >= 1000000 || (irqCounter > 2 && (memoryM1ReadSinceIrqCounter >= 98))) {
+	//if (memoryM1ReadCounter >= 1000000 || (irqCounter > 0 && (memoryM1ReadSinceIrqCounter >= 1))) {
+	//if (memoryM1ReadCounter >= 907001) {
+	//if (memoryM1ReadCounter >= 901394) {
+	//if (memoryM1ReadCounter >= 10000000) {
+	//if (memoryM1ReadCounter >= 1000000) {
+	//if (memoryM1ReadCounter >= 904000) {
+	// if (memoryM1ReadCounter >= 5000000) {
+	// //if (z80cpu->pc == 0x1299) {
+	// //if (z80cpu->pc == 0x0c0e) {
+	// 		dumpRegisters(z80cpu);
+	// } else {
 		memoryM1ReadCounter++;
-	}
+		if (irqAppeared) {
+			memoryM1ReadSinceIrqCounter++;
+		}
+	// }
 
+}
+
+void FASTCODE NOFLASH(resetMemoryM1ReadSinceIrqCounter)() {
+	memoryM1ReadSinceIrqCounter = 0;
+	irqAppeared = true;
+	irqCounter++;
 }

@@ -115,6 +115,8 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
     // set /RESET high to let the CPU run
     gpio_put(PIN_NUMBER_RESET, 1);
 
+	EmuInitializeRealZ80();  // make sure th real Z80 has registers initialized the same way as the emulated one (some would be undefined otherwise)
+
 	u8 op;
 
 	// clear stop flag
@@ -192,8 +194,20 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
 
 		EmuDebugHookPreM1(cpu);
 
+		cpu->previous_m1_pc = cpu->processing_m1_pc;
+		cpu->processing_m1_pc = cpu->pc;
+
 		// get next instruction
 		op = Z80_ProgByte(cpu);
+
+		if (cpu->halted != 0)
+		{
+			cpu->pc--;  // keep PC pointing to the next instruction after HALT
+			continue; // effectively do NOP instead of the fetched instruction (TODO cpu->sync.clock timing?)
+		}
+
+		cpu->previous_m1_opcode = cpu->processing_m1_opcode;
+		cpu->processing_m1_opcode = op;
 
 		// switch base operation code
 		switch (op)
@@ -894,7 +908,7 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
 
 		// HALT
 		case 0x76:
-			cpu->pc--;
+			// cpu->pc--; // this is wrong, after HALT, PC should point to the next instruction (will will be actually fetched but not executed in next M1 cycle)
 			cpu->halted = 1;
 			cpu->sync.clock += Z80_CLOCKMUL*4;
 			break;
@@ -1409,8 +1423,9 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
 				u16 sp = cpu->sp;
 				u8 n = cpu->readmem(sp);
 				u8 n2 = cpu->readmem(sp+1);
-				cpu->writemem(sp, cpu->l);
-				cpu->writemem(sp+1, cpu->h);
+				// TODO fix the same way for ex (sp),ix/iy
+				cpu->writemem(sp+1, cpu->h);  	// keep order of writes same as in real Z80
+				cpu->writemem(sp, cpu->l);		// keep order of writes same as in real Z80
 				cpu->l = n;
 				cpu->h = n2;
 			}
