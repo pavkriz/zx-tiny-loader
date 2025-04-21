@@ -86,37 +86,34 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 {
 	// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
-	// in future, we may measure time between two two consecutive memory reads/writes or io reads/writes to detect in real HW an additional delay accured due to transition to ISR (IRQ ack + PC push to SP make this delay)
-	// remember to consider extra delay if we know the Z80 is doint MEM writes or IO writes that we do not sniff actually (so we may emulate them faster than they are done in real HW)	
-	u8 real_val = (addr <= 10) ? sniff_mem_rd_fast() : sniff_mem_rd();
-	//u8 real_val = sniff_mem_rd_fast();
-	u8 val = Memory[addr];
-	if (real_val != val) {
-		if (real_val == 0xF5) {
-			// we are about to read ISR from ROM at 0x0038: F5 MASK_INT  PUSH AF
-			// update CPU state that we entered ISR
-			// all the following have already been done in the real Z80 while we waited for read signal (in M1 state)
-			// push PC (avoid calling writemem since it would wait for real memory write, but it had already been done in real Z80 before)
-			Memory[--z80cpu.sp] = z80cpu.pc >> 8; // push PC high byte
-			Memory[--z80cpu.sp] = z80cpu.pc & 0xFF; // push PC low byte
-			// set PC to next address after 0x0038
-			z80cpu.pc = 0x0038;
-			// set registers iff1 and iff2 to 0
-			z80cpu.iff1 = 0;
-			z80cpu.iff2 = 0;
-			// clear halted internal flag if set
-			z80cpu.halted = 0;
-			resetMemoryM1ReadSinceIrqCounter();
-		} else {
-			// this would fail if there is POP AF instruction and emulated F register stored on stack is different to the real F register due to undocumented flag bits 3 and 5
-			// this ignore the difference if we are doing POP AF instruction
-			// if (z80cpu.processing_m1_opcode != 0xF1) { // POP AF
-				printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
-				DumpSplitBrain();
-			// }
+	// TODO check also unexpected memory write here indicating CALL (PUSH PC) due to entering NMI ISR
+	s16 real_val = sniff_mem_rd_or_iorq();
+	if (real_val < 0) {
+		resetMemoryM1ReadSinceIrqCounter();
+		// this is IRQ acknowledge
+		// TODO depending on the IM mode, use or not use the value from the DATA bus
+		// TODO currently only IM1 (call to fixed 0x0038 addr) is supported
+		// update CPU state that we entered ISR
+		// push PC
+		z80cpu.writemem(--z80cpu.sp, z80cpu.pc >> 8); // push PC high byte
+		z80cpu.writemem(--z80cpu.sp, z80cpu.pc & 0xFF); // push PC low byte
+		// set PC to next address after 0x0038
+		z80cpu.pc = 0x0038;
+		// set registers iff1 and iff2 to 0
+		z80cpu.iff1 = 0;
+		z80cpu.iff2 = 0;
+		// clear halted internal flag if set
+		z80cpu.halted = 0;
+		u8 opcode_at_isr = z80cpu.readmem(z80cpu.pc);
+		return opcode_at_isr;
+	} else {
+		u8 val = Memory[addr];
+		if (real_val != val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
+			DumpSplitBrain();
 		}
+		return real_val;
 	}
-	return real_val;
 }
 
 // write memory
@@ -133,7 +130,7 @@ void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
 				printf("Emulation split brain FLAGS differ - write to memory: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
 				DumpSplitBrain();
 			} else {
-				// stored flags lookg good, but emulated flags may differ in bits 3 and 5 to real ones
+				// stored flags look good, but emulated flags may differ in bits 3 and 5 to real ones
 				// update emulated F register to match the real one in order no to get splitbrain when doing POP AF (or POP HL or whartever from location where AF is stored) later
 				z80cpu.f = real_val;
 				ignoreDifference = true;
@@ -173,6 +170,11 @@ u8 FASTCODE NOFLASH(EmuGetPort)(u16 addr)
 // write port
 void FASTCODE NOFLASH(EmuSetPort)(u16 addr, u8 data)
 {
+	u8 real_val = sniff_io_wr();
+	if (data != real_val) {
+		printf("Emulation split brain - write to IO: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
+		DumpSplitBrain();
+	}
 	// do nothing
 	if (((addr & 0xFF) == 127) || ((addr & 0xFF) == 95)) {
 		if (data != 0x92) {

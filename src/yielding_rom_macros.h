@@ -55,31 +55,37 @@ static INLINE FASTCODE uint8_t sniff_mem_wr() {
     return val;
 }
 
-static INLINE FASTCODE uint8_t sniff_mem_rd_fast() {
+static INLINE FASTCODE s16 sniff_mem_rd() {
     while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
-    wait_z80_cycles(1.2); // wait for RAM to respond
-    uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */
-    return val;
+    uint8_t val = 0;
+    uint8_t val_prev = 0;
+    do {
+        val_prev = val;
+        val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
+    return val_prev;
 }
 
 
-static INLINE FASTCODE uint8_t sniff_mem_rd() {
-    // int c1 = 0;
-    // int c2 = 0;
-    while (gpio_get(PIN_NUMBER_RD) != 0) {  }    /* wait for RD to go low (indicating a read operation) */ 
+/**
+ * Sniff memory read or IRQ acknowledge operation.
+ * Return positive byte value from DATA bus for read operation or negative DATA bus value for IRQ acknowledge.
+ */
+static INLINE FASTCODE s16 sniff_mem_rd_or_iorq() {
+    u32 control_pins = 0;
+    // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
+    while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
+    bool is_iorq = (control_pins & PIN_BIT_IORQ) == 0;
     //wait_z80_cycles(1); // wait for RAM to respond
     // instead of waiting, read the DATA bus until RD goes high
     uint32_t val = 0;
     uint32_t val_prev = 0;
     do {
-         val_prev = val;
+        val_prev = val;
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    //     c2++;
-    } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */ 
-    //while (gpio_get(PIN_NUMBER_RD) == 0) {  }    /* wait for RD to go high (indicating the end of read operation) */
-    // printf("sniff_mem_rd: c1=%d, c2=%d\n", c1, c2);
-    return val_prev;
+    // wait for both RD anf IORQ to go high (indicating the end of the operation)
+    } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
+    return is_iorq ? -val_prev : val_prev; // return negative value for IORQ
 }
 
 static INLINE FASTCODE uint8_t sniff_io_rd() {
@@ -93,5 +99,21 @@ static INLINE FASTCODE uint8_t sniff_io_rd() {
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
     } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
     //while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */
+    return val_prev;
+}
+
+static INLINE FASTCODE uint8_t sniff_io_wr() {
+     u32 control_pins = 0;
+    // wait for both WR and IORQ to go low
+    while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_IORQ)))  != 0) {  }
+    //wait_z80_cycles(1); // wait for RAM to respond
+    // instead of waiting, read the DATA bus until RD goes high
+    uint32_t val = 0;
+    uint32_t val_prev = 0;
+    do {
+        val_prev = val;
+        val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+    // wait for both RD anf IORQ to go high (indicating the end of the operation)
+    } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
     return val_prev;
 }
