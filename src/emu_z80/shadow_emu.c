@@ -28,8 +28,11 @@ void FASTCODE NOFLASH(EmuInitializeRealZ80)()
 	gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT);
 
 	yield_di();
-	yield_ld_a_n(0); // will be I and R
+	yield_ld_a_n(0); // will be I
 	yield_ld_i_a();
+	// will be R, we make it the value that increments due to following instructions make it wrap to 0 after call 0x0000 (ie. "reset")
+	// 22 refreshcycles follows, only 7 bits are used for R
+	yield_ld_a_n((0-22) & 0b01111111); 
 	yield_ld_r_a();
 	yield_ld_sp_nn(0xffff); // SP
 	yield_exx();
@@ -105,6 +108,7 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 		// clear halted internal flag if set
 		z80cpu.halted = 0;
 		u8 opcode_at_isr = z80cpu.readmem(z80cpu.pc);
+		z80cpu.r -= 7; // sync R register with real Z80 (why this??)
 		return opcode_at_isr;
 	} else {
 		u8 val = Memory[addr];

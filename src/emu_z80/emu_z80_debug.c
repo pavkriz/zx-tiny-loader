@@ -47,21 +47,26 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			// 	yield_nop();
 			// }
 
+			yield_push_af();
+			// now read DATA bus on each write to get the A and F value beeing pushed to stack (store to RAM)
+			uint8_t a = sniff_mem_wr();
+			uint8_t f = sniff_mem_wr();		
+			yield_ld_a_r();
+			yield_push_af();
+			uint8_t r = sniff_mem_wr();	// here R is actually incremented artificially by 2 due to previous 2 instruction involved in "dump registers" process
+			r = (r - 2) & 0b01111111 + (r & 0b10000000); // R is 7 bits counter, 8th bit is always kept as is
+			uint8_t dummy = sniff_mem_wr();		
 			// read PC from CPU indirectly (no direct way exists) by making dummy CALL to a fictitious address
 			// doing CALL XXX which pushes PC to stack, SP was 0xffff after reset, PUSH = cpu->writemem(--cpu->sp, regH); cpu->writemem(--cpu->sp, regL); 
 			yield_call(0x1234);
 			// now read DATA bus on each write to get the PC value beeing pushed to stack (store to RAM)
 			uint8_t pc_h = sniff_mem_wr();
 			uint8_t pc_l = sniff_mem_wr();
-			uint16_t pc = (((uint16_t)pc_h << 8) | (uint16_t)pc_l) - 3; // 3=length of CALL instruction that adds artificially 3 to PC
+			uint16_t pc = (((uint16_t)pc_h << 8) | (uint16_t)pc_l) - 7; // 3=length of CALL instruction that adds artificially 3 to PC + 1 PUSH AF + 2 LD A,R + 1 PUSH AF
 			yield_ld_nn_sp(0x8000);  // store SP to "some" address and sniff the value
 			uint8_t sp_l = sniff_mem_wr();  // here is LOW first
 			uint8_t sp_h = sniff_mem_wr();
 			uint16_t sp = (((uint16_t)sp_h << 8) | (uint16_t)sp_l) + 2;  // 2=length of return adress of CALL instruction that is used few lines above
-			yield_push_af();
-			// now read DATA bus on each write to get the A and F value beeing pushed to stack (store to RAM)
-			uint8_t a = sniff_mem_wr();
-			uint8_t f = sniff_mem_wr();		
 			yield_push_bc();
 			uint8_t b = sniff_mem_wr();			
 			uint8_t c = sniff_mem_wr();
@@ -88,6 +93,7 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			printf("Real A: %02X\n", a);
 			//printf("Real F: %02X\n", f & 0b11010111);
 			printf("Real F: %02X\n", f);
+			printf("Real R: %02X\n", r);
 			printf("Real BC: %04X\n", (b << 8) | c);
 			printf("Real DE: %04X\n", (d << 8) | e);
 			printf("Real HL: %04X\n", (h << 8) | l);
@@ -101,6 +107,7 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			printf("A:\t%02X\n", z80cpu->a);
 			//printf("F:\t%02X\n", z80cpu->f & 0b11010111);
 			printf("F:\t%02X\n", z80cpu->f);
+			printf("R:\t%02X\n", (z80cpu->r & 0b01111111) | (z80cpu->r7 & 0b10000000));
 			printf("BC:\t%04X\n", z80cpu->bc);
 			printf("DE:\t%04X\n", z80cpu->de);
 			printf("HL:\t%04X\n", z80cpu->hl);

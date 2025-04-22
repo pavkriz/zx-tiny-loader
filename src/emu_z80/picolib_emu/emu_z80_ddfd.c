@@ -414,7 +414,7 @@ void FASTCODE NOFLASH(Z80_ExecDDFD)(sZ80* cpu, u8* r)
 	// prefix DDFDCB
 	case 0xCB:
 		{
-			cpu->r++; // increment memory refresh address
+			// cpu->r++; // increment memory refresh address // WRONG,  There's an interesting exception: doubly-shifted opcodes, the DDCB and FDCB ones, increase R by only two.
 			u16 tempaddr = *(u16*)r + (s8)Z80_ProgByte(cpu);
 			op = Z80_ProgByte(cpu); // read next program byte
 			u8 n = cpu->readmem(tempaddr);  // pavkriz: this must be after last Z80_ProgByte of this instruction to keep memory reads order as in real HW

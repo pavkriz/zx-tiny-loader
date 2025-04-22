@@ -44,7 +44,8 @@ static INLINE void yield_mem(uint32_t n) {
 #define yield_ld_ix_nn(nn) {yield_m1(0xDD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
 #define yield_ld_iy_nn(nn) {yield_m1(0xFD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
 #define yield_ld_i_a() { yield_m1(0xED); yield_mem(0x47); }
-#define yield_ld_r_a() { yield_m1(0xED); yield_mem(0x5F); }
+#define yield_ld_r_a() { yield_m1(0xED); yield_mem(0x4F); }
+#define yield_ld_a_r() { yield_m1(0xED); yield_mem(0x5F); }
 
 #define wait_z80_cycles(n) busy_wait_at_least_cycles(n*300000000/3500000); // wait for 1 Z80 cycle (assuming 3.5MHz Z80 clock and 300MHz Pico clock)
 
