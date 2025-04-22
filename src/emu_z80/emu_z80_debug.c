@@ -116,6 +116,8 @@ void FASTCODE NOFLASH(dumpRegisters)(sZ80* z80cpu) {
 			printf("HL':\t%04X\n", z80cpu->hl2);
 			printf("IFF1:\t%02X\n", z80cpu->iff1);
 			printf("IFF2:\t%02X\n", z80cpu->iff2);
+			printf("Processing M1 PC: %04X\n", z80cpu->processing_m1_pc);			
+			printf("Processing M1 opcode: 0x%02X\n", z80cpu->processing_m1_opcode);
 			// and stop
 			while (1) { }
 }
@@ -130,16 +132,16 @@ void FASTCODE NOFLASH(EmuDebugHookPreM1)(sZ80* z80cpu) {
 	//if (memoryM1ReadCounter >= 10000000) {
 	//if (memoryM1ReadCounter >= 1000000) {
 	//if (memoryM1ReadCounter >= 904000) {
-	// if (memoryM1ReadCounter >= 5000000) {
+	if (memoryM1ReadCounter >= 10000000) {
 	// //if (z80cpu->pc == 0x1299) {
 	// //if (z80cpu->pc == 0x0c0e) {
-	// 		dumpRegisters(z80cpu);
-	// } else {
+	 		dumpRegisters(z80cpu);
+	} else {
 		memoryM1ReadCounter++;
 		if (irqAppeared) {
 			memoryM1ReadSinceIrqCounter++;
 		}
-	// }
+	}
 
 }
 

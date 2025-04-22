@@ -24,6 +24,8 @@
 #include "../../../pinmap.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "../../yielding_rom_macros.h"
+
 
 // current CPU descriptor (NULL = not running)
 volatile sZ80* Z80_Cpu = NULL;
@@ -109,6 +111,8 @@ INLINE u16 Z80_ProgWord(sZ80* cpu)
 // CPU loading at 4 MHz on 120 MHz: used 29-55%, max. 40-55%
 void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
 {
+	disable_zx_rom();
+
 	// reset ZX here in fast function
 	gpio_put(PIN_NUMBER_RESET, 0);
     busy_wait_ms(100); // wait some time
