@@ -17,6 +17,7 @@
 // r ... pointer to ixl or iyl
 void FASTCODE NOFLASH(Z80_ExecDDFD)(sZ80* cpu, u8* r)
 {
+  prefix_flood_retry:
 	u8 op = Z80_ProgByte(cpu);
 
 	// switch 0xDD (=IX) or 0xFD (=IY) operation code
@@ -424,6 +425,10 @@ void FASTCODE NOFLASH(Z80_ExecDDFD)(sZ80* cpu, u8* r)
 		}
 		break;
 
+	// prefix flooding
+	case 0xDD:	
+		goto prefix_flood_retry; // retry fetching the next opcode (?)
+
 	// POP IXY
 	case 0xE1:
 		Z80_POP(r[0], r[1]);
@@ -461,6 +466,10 @@ void FASTCODE NOFLASH(Z80_ExecDDFD)(sZ80* cpu, u8* r)
 		cpu->sp = *(u16*)r;
 		cpu->sync.clock += Z80_CLOCKMUL*10;
 		break;
+
+	// prefix flooding
+	case 0xFD:	
+		goto prefix_flood_retry; // retry fetching the next opcode (?)
 
 	// invalid opcode, roll back
 	default:
