@@ -8,10 +8,15 @@
 #include "../yielding_rom_macros.h"
 #include "hardware/timer.h"
 #include "emu_z80_debug.h"
+#include "../sna_loader.h"
+#include "../bios_rom.h"
 
+#define ZX_ROM_SIZE 0x4000
 
 sZ80	z80cpu;
 u8 Memory[Z80_MEMSIZE]; // memory 64 KB
+// ROM pointer, default to "Memory"
+u8* ROM = Memory;
 
 u8 last_value_written_to_0xff4a = 0;
 u8 last_value_written_to_0xff4a_at_pc = 0;
@@ -93,15 +98,35 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 {
 	s16 real_val;
+	u8 val;
 
-	if (addr < 0x4000) {
-		// read from our emulated ROM
-		u8 val = Memory[addr];
+	if ((addr < ZX_ROM_SIZE) && snapshot_is_loading()) {
+		// read from emulated ROM
+		if (addr == ROM_ADDR_COMMAND_BYTE_BUFFER) {
+			// This is the command byte buffer address, 
+			// we need to read next byte from snapshot RAM to be loaded by the running Z80 code.
+			// This way we mimmic something like INIR instruction behaviour but from the memory instead of I/O port.
+			val = snapshot_get_next_byte();
+		} else {
+			val = ROM[addr];
+		}
 		real_val = yield_mem_or_sniff_iorq(val);
+		if (addr == snapshot_get_rom_page_out_address()) {
+			// this is the address where the "BIOS" ROM (that loads a snapshot) is mapped out and original ROM is mapped in
+			enable_zx_rom();
+			snapshot_loading_finished();			
+		}
 	} else {
 		// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
 		// TODO check also unexpected memory write here indicating CALL (PUSH PC) due to entering NMI ISR
 		real_val = sniff_mem_rd_or_iorq();
+		if (addr >= ZX_ROM_SIZE) {
+			// RAM, we shadow-emulate it
+			val = Memory[addr];
+		} else {
+			// ROM, we read from DATA bus (we may shadow emulate it in future, but now we don't do it yet)
+			val = real_val;
+		}
 	}
 
 	if (real_val < 0) {
@@ -139,7 +164,6 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 		z80cpu.r += 1; // sync R register with real Z80 (why this??)
 		return opcode_at_isr;
 	} else {
-		u8 val = Memory[addr];
 		if (real_val != val) {
 			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
 			DumpSplitBrain();
@@ -229,8 +253,12 @@ void shadow_emulator() {
 	// copy ROM to memory
 	for (int i = 0; i < sizeof(testrom); i++) {
 		//Memory[i] = didaktik_gama_1989_rom[i];
-		Memory[i] = testrom[i];
+		//Memory[i] = testrom[i];
+		Memory[i] = bios_rom[i];
 	}
+
+	snapshot_init(Memory); // initialize snapshot loading
+
 
 	// setup callback functions
 	z80cpu.readmem = EmuGetMem;

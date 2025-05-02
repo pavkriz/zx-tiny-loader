@@ -1,0 +1,189 @@
+                        ; --------------------------------------
+                        ; zasm: assemble "bios.asm"
+                        ; date: 2025-05-02 21:29:17
+                        ; --------------------------------------
+
+
+                        #target rom
+                        
+0000:                   COMMAND_NONE equ 0          ; no command
+0001:                   COMMAND_MEM_COPY equ 1      ; copy from buffer to memory
+0002:                   COMMAND_JUMP equ 2          ; jump to buffer address
+0003:                   COMMAND_SNAP equ 3          ; load snapshot (copy data to RAM via BYTE_BUFFER and jump to ROM_BUFFER_ADDR)
+                        
+2000:                   ROM_BUFFER_ADDR equ 0x2000
+2000:                   ROM_BUFFER_SIZE equ 0x2000
+                        
+0007:                   BORDER_COLOR_WHITE equ 0x7
+0000:                   BORDER_COLOR_BLACK equ 0x0
+0001:                   BORDER_COLOR_BLUE equ 0x1
+0002:                   BORDER_COLOR_RED equ 0x2
+0003:                   BORDER_COLOR_MAGENTA equ 0x3
+0004:                   BORDER_COLOR_GREEN equ 0x4
+0005:                   BORDER_COLOR_CYAN equ 0x5
+0006:                   BORDER_COLOR_YELLOW equ 0x6
+                        
+00FE:                   PORT_ULA equ 0xFE
+                        
+1F00:                   #data VARIABLES, 0x1F00
+                        
+                        ; define some variables here
+1F00:                   COMMAND:
+1F00: 00                        defb 0
+1F01:                   BYTE_BUFFER:
+1F01: 00                        defb 0
+1F02:                   COMMAND_DEST:   ; usually destination address where to copy the current buffer
+1F02: 0000                      defw 0
+1F04:                   COMMAND_SIZE:   ; usually size of the current buffer
+1F04: 0000                      defw 0
+                        
+                        
+0000:                   #code EPROM, 0, 0x4000
+                        
+                        
+                        ; reset vector
+0000: F3       [ 4]     RST0::  di
+0001: C36800   [14]             jp      init
+0004: FFFFFFFF                  defs    0x08-$
+                        
+0008: C9       [10]     RST1::  ret
+0009: FFFFFFFF                  defs    0x10-$
+000D: FFFFFF            
+                        
+0010: C9       [10]     RST2::  ret
+0011: FFFFFFFF                  defs    0x18-$
+0015: FFFFFF            
+                        
+0018: C9       [10]     RST3::  ret
+0019: FFFFFFFF                  defs    0x20-$
+001D: FFFFFF            
+                        
+0020: C9       [10]     RST4::  ret
+0021: FFFFFFFF                  defs    0x28-$
+0025: FFFFFF            
+                        
+0028: C9       [10]     RST5::  ret
+0029: FFFFFFFF                  defs    0x30-$
+002D: FFFFFF            
+0030: C9       [20]     	ret
+                        
+0031: C9       [10]     RST6::  ret
+0032: FFFFFFFF                  defs    0x38-$
+0036: FFFF              
+                        
+                        ; maskable interrupt handler
+0038: FB       [ 4]     RST7::  ei
+0039: ED4D     [18]             reti
+                        
+                        ; non maskable interrupt:
+                        ; e.g. call debugger and on exit resume.
+003B: FFFFFFFF                  defs    0x66-$
+003F: FF...             
+0066: FB       [ 4]     NMI::   ei                      ; else re-eanble interrupts
+0067: C9       [14]             ret
+                        
+                        
+                        ; init:
+0068:                   init:
+                                ; initialize the stack pointer
+0068: 31FFFF   [10]             ld sp, 0xFFFF
+006B: 3E07     [17]             ld a, BORDER_COLOR_WHITE
+006D: D3FE     [28]             out (PORT_ULA), a
+006F:                   command_loop:
+006F: 3E06     [ 7]             ld a, BORDER_COLOR_YELLOW
+0071: D3FE     [18]             out (PORT_ULA), a
+                        
+0073: 3A001F   [31]             ld a, (COMMAND)
+0076: FE00     [38]             cp COMMAND_NONE
+0078: 28F5     [45|50]          jr z, command_loop
+007A: FE01     [52]             cp COMMAND_MEM_COPY
+007C: 280B     [59|64]          jr z, command_mem_copy
+007E: FE02     [66]             cp COMMAND_JUMP
+0080: 281C     [73|78]          jr z, command_jump
+0082: FE03     [80]             cp COMMAND_SNAP
+0084: 281B     [87|92]          jr z, command_snap_load
+                                ; unknown command
+0086: C36F00   [97]             jp command_loop
+0089:                   command_mem_copy:
+                                ; copy the buffer to the destination
+0089: 210020   [10]             ld hl, ROM_BUFFER_ADDR
+008C: ED5B021F [30]             ld de, (COMMAND_DEST)
+0090: ED4B041F [50]             ld bc, (COMMAND_SIZE)
+0094: EDB0     [66|21]          ldir
+                                ; reset command
+0096: 3E00     [73]             ld a, COMMAND_NONE
+0098: 32001F   [86]             ld (COMMAND), a
+009B: C36F00   [96]             jp command_loop
+009E:                   command_jump:
+                                ; jump to buffer where the code to continue in execution is
+009E: C30020   [10]             jp ROM_BUFFER_ADDR
+                                ; this is usually the last command that eg. bootstraps the loaded snapshot
+00A1:                   command_snap_load:
+00A1: 3E01     [ 7]             ld a, BORDER_COLOR_BLUE
+00A3: D3FE     [18]             out (PORT_ULA), a
+                                ; snap loading phase1: load the snapshot memory to RAM via BYTE_BUFFER
+00A5: 21021F   [28]             ld hl, BYTE_BUFFER+1  ; source address (+1 because we decremented HL in the loop before LDI)
+00A8: 110040   [38]             ld de, 0x4000  ; fixed destination address (RAM)
+00AB: 0100C0   [48]             ld bc, 0xC000  ; fixed size of the snapshot (48k)
+00AE:                   _command_snap_load_loop:
+00AE: 2B       [ 6]             dec hl         ; decrement the source address back to BYTE_BUFFER in th eloop (since each LDI increments HL automatically)
+00AF: EDA0     [22]             ldi            ; load one byte from BYTE_BUFFER to RAM 
+00B1: EAAE00   [32|32]          jp pe, _command_snap_load_loop ; loop until all bytes are copied
+                                ; snap loading phase2: jump to buffer where the code to continue in execution is (sets registers, etc.)
+00B4: 3E04     [39]             ld a, BORDER_COLOR_GREEN
+00B6: D3FE     [50]             out (PORT_ULA), a
+00B8: C30020   [60]             jp ROM_BUFFER_ADDR
+                                ; this is usually the last command that eg. bootstraps the loaded snapshot 
+
+
+; +++ segments +++
+
+#DATA VARIABLES  = $1F00 =  7936,  size = $0006 =     6
+#CODE EPROM      = $0000 =     0,  size = $4000 = 16384
+
+; +++ global symbols +++
+
+BORDER_COLOR_BLACK   = $0000 =     0            bios.asm:12 (unused)
+BORDER_COLOR_BLUE    = $0001 =     1            bios.asm:13
+BORDER_COLOR_CYAN    = $0005 =     5            bios.asm:17 (unused)
+BORDER_COLOR_GREEN   = $0004 =     4            bios.asm:16
+BORDER_COLOR_MAGENTA = $0003 =     3            bios.asm:15 (unused)
+BORDER_COLOR_RED     = $0002 =     2            bios.asm:14 (unused)
+BORDER_COLOR_WHITE   = $0007 =     7            bios.asm:11
+BORDER_COLOR_YELLOW  = $0006 =     6            bios.asm:18
+BYTE_BUFFER          = $1F01 =  7937  VARIABLES bios.asm:27
+COMMAND              = $1F00 =  7936  VARIABLES bios.asm:25
+COMMAND_DEST         = $1F02 =  7938  VARIABLES bios.asm:29
+COMMAND_JUMP         = $0002 =     2            bios.asm:5
+COMMAND_MEM_COPY     = $0001 =     1            bios.asm:4
+COMMAND_NONE         = $0000 =     0            bios.asm:3
+COMMAND_SIZE         = $1F04 =  7940  VARIABLES bios.asm:31
+COMMAND_SNAP         = $0003 =     3            bios.asm:6
+EPROM                = $0000 =     0  EPROM     bios.asm:35 (unused)
+EPROM_end            = $4000 = 16384  EPROM     bios.asm:35 (unused)
+EPROM_size           = $4000 = 16384  EPROM     bios.asm:35 (unused)
+NMI                  = $0066 =   102  EPROM     bios.asm:69 (unused)
+PORT_ULA             = $00FE =   254            bios.asm:20
+ROM_BUFFER_ADDR      = $2000 =  8192            bios.asm:8
+ROM_BUFFER_SIZE      = $2000 =  8192            bios.asm:9 (unused)
+RST0                 = $0000 =     0  EPROM     bios.asm:39 (unused)
+RST1                 = $0008 =     8  EPROM     bios.asm:43 (unused)
+RST2                 = $0010 =    16  EPROM     bios.asm:46 (unused)
+RST3                 = $0018 =    24  EPROM     bios.asm:49 (unused)
+RST4                 = $0020 =    32  EPROM     bios.asm:52 (unused)
+RST5                 = $0028 =    40  EPROM     bios.asm:55 (unused)
+RST6                 = $0031 =    49  EPROM     bios.asm:59 (unused)
+RST7                 = $0038 =    56  EPROM     bios.asm:63 (unused)
+VARIABLES            = $1F00 =  7936  VARIABLES bios.asm:22 (unused)
+VARIABLES_end        = $1F06 =  7942  VARIABLES bios.asm:22 (unused)
+VARIABLES_size       = $0006 =     6  VARIABLES bios.asm:22 (unused)
+_command_snap_load_loop = $00AE =   174  EPROM     bios.asm:115
+command_jump         = $009E =   158  EPROM     bios.asm:104
+command_loop         = $006F =   111  EPROM     bios.asm:79
+command_mem_copy     = $0089 =   137  EPROM     bios.asm:94
+command_snap_load    = $00A1 =   161  EPROM     bios.asm:108
+init                 = $0068 =   104  EPROM     bios.asm:74
+
+
+total time: 0.0011 sec.
+no errors

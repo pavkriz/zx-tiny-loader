@@ -50,6 +50,7 @@ static INLINE void yield_mem(uint32_t n) {
 #define wait_z80_cycles(n) busy_wait_at_least_cycles(n*300000000/3500000); // wait for 1 Z80 cycle (assuming 3.5MHz Z80 clock and 300MHz Pico clock)
 
 #define disable_zx_rom() { gpio_put(PIN_NUMBER_ROMCS, 1); gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT); } // disable internal ZX ROM
+#define enable_zx_rom() { gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_IN); } // enable internal ZX ROM
 
 static INLINE FASTCODE uint8_t sniff_mem_wr() {
     while (gpio_get(PIN_NUMBER_WR) != 0) { }    /* wait for WR to go low (indicating a write operation) */

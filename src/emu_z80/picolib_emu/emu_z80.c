@@ -119,7 +119,7 @@ void FASTCODE NOFLASH(Z80_Exec)(sZ80* cpu)
     // set /RESET high to let the CPU run
     gpio_put(PIN_NUMBER_RESET, 1);
 
-	EmuInitializeRealZ80();  // make sure th real Z80 has registers initialized the same way as the emulated one (some would be undefined otherwise)
+	//EmuInitializeRealZ80();  // make sure th real Z80 has registers initialized the same way as the emulated one (some would be undefined otherwise)
 
 	u8 op;
 

@@ -132,16 +132,16 @@ void FASTCODE NOFLASH(EmuDebugHookPreM1)(sZ80* z80cpu) {
 	//if (memoryM1ReadCounter >= 10000000) {
 	//if (memoryM1ReadCounter >= 1000000) {
 	//if (memoryM1ReadCounter >= 904000) {
-	if (memoryM1ReadCounter >= 10000000) {
+	//if (memoryM1ReadCounter >= 500000) {
 	// //if (z80cpu->pc == 0x1299) {
 	// //if (z80cpu->pc == 0x0c0e) {
-	 		dumpRegisters(z80cpu);
-	} else {
+	// 		dumpRegisters(z80cpu);
+	//} else {
 		memoryM1ReadCounter++;
 		if (irqAppeared) {
 			memoryM1ReadSinceIrqCounter++;
 		}
-	}
+	//}
 
 }
 
