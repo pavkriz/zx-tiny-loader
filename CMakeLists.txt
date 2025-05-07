@@ -40,6 +40,7 @@ add_executable(zx_tiny_loader
         src/emu_z80/emu_z80_debug.c
         src/emu_z80/picolib_emu/emu.c
         src/emu_z80/shadow_emu.c
+        src/emu_z80/flight_recorder.c
         src/sna_loader.c
         )
 

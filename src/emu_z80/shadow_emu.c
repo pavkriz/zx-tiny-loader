@@ -10,6 +10,7 @@
 #include "emu_z80_debug.h"
 #include "../sna_loader.h"
 #include "../bios_rom.h"
+#include "flight_recorder.h"
 
 #define ZX_ROM_SIZE 0x4000
 
@@ -70,6 +71,7 @@ void FASTCODE NOFLASH(EmuInitializeRealZ80)()
 
 void FASTCODE NOFLASH(DumpSplitBrain)()
 {
+	flight_recorder_dump();
 	printf("Processing M1 opcode: 0x%02X\n", z80cpu.processing_m1_opcode);
 	printf("Previous M1 opcode: 0x%02X\n", z80cpu.previous_m1_opcode);
 	printf("Processing M1 PC: 0x%04X\n", z80cpu.processing_m1_pc);
@@ -134,6 +136,7 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 		// this is IRQ acknowledge
 		u8 opcode_at_isr;
 		s16 data_bus_val = -real_val-1; // convert to positive value		
+		flight_recorder_log_irq(z80cpu.pc);
 		// depending on the IM mode, use or not use the value from the DATA bus
 		// update CPU state that we entered ISR
 		// push PC
@@ -162,8 +165,10 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 		// clear halted internal flag if set
 		z80cpu.halted = 0;		
 		z80cpu.r += 1; // sync R register with real Z80 (why this??)
+		flight_recorder_log_mem_rd(z80cpu.pc, opcode_at_isr, true);
 		return opcode_at_isr;
 	} else {
+		flight_recorder_log_mem_rd(addr, val, z80cpu.pc == addr);
 		if (real_val != val) {
 			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
 			DumpSplitBrain();
@@ -198,6 +203,8 @@ void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
 		}
 	}
 
+	flight_recorder_log_mem_wr(addr, data);
+
 	if (data != real_val && !ignoreDifference) {
 		printf("Emulation split brain - write to memory: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
 		DumpSplitBrain();
@@ -220,13 +227,16 @@ void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
 // read port
 u8 FASTCODE NOFLASH(EmuGetPort)(u16 addr)
 {
-	return sniff_io_rd();
+	u8 val = sniff_io_rd();
+	flight_recorder_log_io_rd(addr, val);
+	return val;
 }
 
 // write port
 void FASTCODE NOFLASH(EmuSetPort)(u16 addr, u8 data)
 {
 	u8 real_val = sniff_io_wr();
+	flight_recorder_log_io_wr(addr, data);
 	if (data != real_val) {
 		printf("Emulation split brain - write to IO: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
 		DumpSplitBrain();
