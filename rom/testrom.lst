@@ -1,6 +1,6 @@
                         ; --------------------------------------
                         ; zasm: assemble "testrom.asm"
-                        ; date: 2025-05-07 21:01:01
+                        ; date: 2025-05-08 22:43:16
                         ; --------------------------------------
 
 
@@ -64,19 +64,19 @@
 0032: FFFFFFFF                  defs    0x38-$
 0036: FFFF              
                         
-                        ; maskable interrupt handler in interrupt mode 1:
+                        ; maskable interrupt handler in interrupt mode 1 (IM1):
 0038: ED5F     [ 9]     RST7::  ld      a, r
 003A: 32015B   [22]             ld      (VAR2), a            ; store R register to RAM (check the shadow-emulated RAM WR here)
-                                ;jr      $                    ; infinite loop
-003D: FB       [26]             ei
-003E: ED4D     [40]             reti
+003D: 18FE     [34]             jr      $                    ; infinite loop
+003F: FB       [38]             ei
+0040: ED4D     [52]             reti
                         
                         
                         ; non maskable interrupt:
                         ; e.g. call debugger and on exit resume.
                         
-0040: FFFFFFFF                  defs    0x66-$
-0044: FF...             
+0042: FFFFFFFF                  defs    0x66-$
+0046: FF...             
 0066: ED57     [ 9]     NMI::   ld      a,i
 0068: F5       [20]             push    af
 0069: F1       [30]             pop     af
@@ -215,11 +215,11 @@
                         
 00DA:                   irq_test:
                         
-                                ;im      1                    ; set IM 1 mode
-00DA: CD3830   [17]             call setup_im2
-00DD: ED5E     [25]             im      2                    ; set IM 2 mode
-00DF: FB       [29]             ei                           ; enable maskable IRQ
-00E0: 18FE     [41]             jr      $                    ; and wait (for interrupt)
+00DA: ED56     [ 8]             im      1                    ; set IM 1 mode
+                                ;call setup_im2
+                                ;im      2                    ; set IM 2 mode
+00DC: FB       [12]             ei                           ; enable maskable IRQ
+00DD: 18FE     [24]             jr      $                    ; and wait (for interrupt)
                         
                         
                         ; Make sure this is on a 256 byte boundary
@@ -304,9 +304,9 @@ init               = $006D =   109  EPROM     testrom.asm:78
 io_timing_test     = $00A6 =   166  EPROM     testrom.asm:150 (unused)
 irq_test           = $00DA =   218  EPROM     testrom.asm:202 (unused)
 results            = $5B02 = 23298  VARIABLES testrom.asm:23
-setup_im2          = $3038 = 12344  EPROM     testrom.asm:229
+setup_im2          = $3038 = 12344  EPROM     testrom.asm:229 (unused)
 z80_undoc          = $0075 =   117  EPROM     testrom.asm:83 (unused)
 
 
-total time: 0.0025 sec.
+total time: 0.0014 sec.
 no errors

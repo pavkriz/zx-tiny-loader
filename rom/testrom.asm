@@ -51,10 +51,10 @@ RST5::  ret
 RST6::  ret
         defs    0x38-$
 
-; maskable interrupt handler in interrupt mode 1:
+; maskable interrupt handler in interrupt mode 1 (IM1):
 RST7::  ld      a, r
         ld      (VAR2), a            ; store R register to RAM (check the shadow-emulated RAM WR here)
-        ;jr      $                    ; infinite loop
+        jr      $                    ; infinite loop
         ei
         reti
 
@@ -201,9 +201,9 @@ Measure_OUT_R:
 
 irq_test:
 
-        ;im      1                    ; set IM 1 mode
-        call setup_im2
-        im      2                    ; set IM 2 mode
+        im      1                    ; set IM 1 mode
+        ;call setup_im2
+        ;im      2                    ; set IM 2 mode
         ei                           ; enable maskable IRQ
         jr      $                    ; and wait (for interrupt)
 

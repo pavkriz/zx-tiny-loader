@@ -2641,7 +2641,8 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				| executed if the interrupt mode is 0.				       |
 				'=====================================================================*/
 				R++;
-				ird = (self->inta != Z_NULL) ? self->inta(CONTEXT, PC) : 0xFF;
+				//ird = (self->inta != Z_NULL) ? self->inta(CONTEXT, PC) : 0xFF;
+				// ird is already set from the moment the INT ack cycle is detected by fetch_opcode_or_detect_interrupt
 
 #				ifdef Z80_WITH_SPECIAL_RESET
 					PC >>= special_reset;
@@ -2946,7 +2947,17 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 			}
 
 		R++;
-		self->cycles += insn_table[DATA[0] = FETCH_OPCODE(PC)](self);
+		zuint16 op_or_int = self->fetch_opcode_or_detect_interrupt(CONTEXT, PC);
+		if (op_or_int & (Z80_REQUEST_INT << 8))
+			{
+				// real CPU has made IRQ acknowledge and we have read the DATA bus during the acknowledge
+				REQUEST = Z80_REQUEST_INT;  // will be taken into account in the next iteration of the while loop
+				ird = op_or_int & 0xFF; // data from DATA bus stored in case the IM0 or IM2 will need it								
+				R--; // decrement R back to previous value because this was not an opcode fetch cycle actually
+			} else {
+				// real CPU has made normal fetch
+				self->cycles += insn_table[DATA[0] = op_or_int](self);
+			}
 		}
 
 	R = R_ALL; /* Restore R7 bit. */

@@ -114,6 +114,15 @@ typedef struct Z80 Z80;
 typedef zuint8 (* Z80Read)(void *context, zuint16 address);
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
+  * perform a read operation or detect an interrupt event.
+  *
+  * @param context The <tt>@ref Z80::context</tt> of the calling object.
+  * @param address The memory address or I/O port to read from.
+  * @return The byte read or interrupt vector + interrupt flags. */
+
+typedef zuint16 (* Z80ReadOrInterrupt)(void *context, zuint16 address);
+
+/** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * perform a write operation.
   *
   * @param context The <tt>@ref Z80::context</tt> of the calling object.
@@ -177,6 +186,15 @@ struct Z80 {
 	  * necessary. */
 
 	void *context;
+
+	/** @brief Invoked to perform an opcode fetch or detect interrupt event (eg. IRQ acklowledge cycle) in read CPU.
+	  *
+	  * This callback indicates the beginning of an opcode fetch M-cycle.
+	  * The function must return the byte located at the memory address
+	  * specified by the second argument or the interrupt vector from data bus with flags
+	  * indicating the type of interrupt (eg. NMI, INT, etc) in higher byte returned.
+	  */
+	Z80ReadOrInterrupt fetch_opcode_or_detect_interrupt;
 
 	/** @brief Invoked to perform an opcode fetch.
 	  *

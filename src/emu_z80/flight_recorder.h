@@ -8,6 +8,7 @@ typedef enum {
     FR_IO_WR,   // I/O write
     FR_IO_RD,   // I/O read
     FR_FETCH,   // Instruction fetch
+    FR_FETCH_1, // Instruction fetch, fetching 1st byte of the opcode
     FR_IRQ,     // IRQ entry
 } fr_operation_t;
 

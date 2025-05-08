@@ -27,6 +27,11 @@ typedef struct {
 
 Machine machine;
 
+typedef struct {
+        uint8_t   val;
+        uint16_t  real_val;
+} Generic_mem_read_result;
+
 bool next_mem_wr_is_push_f = false;
 
 void FASTCODE NOFLASH(EmuInitializeRealZ80)()
@@ -107,10 +112,10 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 	while (1) { } // stop here
 }
 
-// read memory
-zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
+
+Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self, zuint16 addr)
 {
-	int16_t real_val;
+	uint16_t real_val;
 	uint8_t val;
 
 /*
@@ -147,54 +152,42 @@ zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 		}
 	}
 
-	if (real_val < 0) {
-		printf("IRQ occured, TBD\n");
-		/*
-		resetMemoryM1ReadSinceIrqCounter();
-		// this is IRQ acknowledge
-		uint8_t opcode_at_isr;
-		int16_t data_bus_val = -real_val-1; // convert to positive value		
-		flight_recorder_log_irq(z80cpu.pc);
-		// depending on the IM mode, use or not use the value from the DATA bus
-		// update CPU state that we entered ISR
-		// push PC
-		z80cpu.writemem(--z80cpu.sp, z80cpu.pc >> 8); // push PC high byte
-		z80cpu.writemem(--z80cpu.sp, z80cpu.pc & 0xFF); // push PC low byte
-		if (z80cpu.mode == Z80_INTMODE0) {
-			// read instruction opcode from DATA bus
-			opcode_at_isr = data_bus_val;
-		} else if (z80cpu.mode == Z80_INTMODE1) {
-			// set PC to 0x0038
-			z80cpu.pc = 0x0038;
-			opcode_at_isr = z80cpu.readmem(z80cpu.pc);
-		} else {	// IM2
-			// calculate the pointer to vector table
-			uint16_t isr_l_pointer = (z80cpu.i << 8) | (data_bus_val & 0xFF);
-			// read from vector table the ISR address
-			uint8_t isr_pc_l = z80cpu.readmem(isr_l_pointer);
-			uint8_t isr_pc_h = z80cpu.readmem(isr_l_pointer + 1);
-			// set PC to ISR address and fetch the instruction
-			z80cpu.pc = (isr_pc_h << 8) | isr_pc_l;
-			opcode_at_isr = z80cpu.readmem(z80cpu.pc);
-		}
-		// set registers iff1 and iff2 to 0
-		z80cpu.iff1 = 0;
-		z80cpu.iff2 = 0;
-		// clear halted internal flag if set
-		z80cpu.halted = 0;		
-		z80cpu.r += 1; // sync R register with real Z80 (why this??)
-		flight_recorder_log_mem_rd(z80cpu.pc, opcode_at_isr, true);
-		return opcode_at_isr;
-		*/
+	return (Generic_mem_read_result) { .val = val, .real_val = real_val };
+}
+
+// read memory or detect interrupt acknowledge cycle
+zuint16 FASTCODE NOFLASH(machine_cpu_read_or_detect_interrupt_ack)(Machine *self, zuint16 addr)
+{
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		// this is IRQ acknowledge, the calling code will detect the flag in the higher byte
+		flight_recorder_log_irq(self->cpu.pc.uint16_value);
 	} else {
-		//int is_at_pc = ((zuint16)(self->cpu.pc) == addr);
-		flight_recorder_log_mem_rd(addr, val, true); // TODO check PC flag
-		if (real_val != val) {
-			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
+		flight_recorder_log_op(FR_FETCH_1, addr, res.val);
+		if (res.real_val != res.val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
 			DumpSplitBrain();
 		}
-		return real_val;
 	}
+	return res.real_val;
+}
+
+// read memory
+zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
+{
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
+		DumpSplitBrain();
+	} else {
+		int is_at_pc = (self->cpu.pc.uint16_value == addr);
+		flight_recorder_log_op(is_at_pc ? FR_FETCH : FR_MEM_RD, addr, res.val);
+		if (res.real_val != res.val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
+			DumpSplitBrain();
+		}
+	}
+	return res.real_val;
 }
 
 // write memory
@@ -271,6 +264,7 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 
 	// initialize Z80
 	machine.cpu.context      = &machine;
+	machine.cpu.fetch_opcode_or_detect_interrupt = (Z80ReadOrInterrupt)machine_cpu_read_or_detect_interrupt_ack;
 	machine.cpu.fetch_opcode =
 	machine.cpu.fetch        =
 	machine.cpu.nop          =
@@ -318,6 +312,7 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 
 	z80_run(&machine.cpu, 50000);
 	printf("Emulation finished\n");
+	printf("Interrupt mode: IM%d\n", machine.cpu.im);
 	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
 	flight_recorder_dump();
 	while (1) {

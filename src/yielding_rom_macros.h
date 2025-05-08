@@ -4,6 +4,7 @@
 #include "hardware/gpio.h"
 #include <stdint.h>
 #include "global.h"
+#include <Z80.h>
 
 // ROM 0x0038 addr = IM1 IRQ ISR
 // ROM 0x0066 addr = NMI ISR
@@ -74,9 +75,9 @@ static INLINE FASTCODE int16_t sniff_mem_rd() {
 
 /**
  * Sniff memory read or IRQ acknowledge operation.
- * Return positive byte value from DATA bus for read operation or negative DATA bus value for IRQ acknowledge.
+ * Return byte value from DATA bus for read operation or DATA bus + flag in upper byte for IRQ acknowledge.
  */
-static INLINE FASTCODE int16_t sniff_mem_rd_or_iorq() {
+static INLINE FASTCODE uint16_t sniff_mem_rd_or_iorq() {
     uint32_t control_pins = 0;
     // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
     while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
@@ -90,10 +91,10 @@ static INLINE FASTCODE int16_t sniff_mem_rd_or_iorq() {
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
     // wait for both RD anf IORQ to go high (indicating the end of the operation)
     } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
-    return is_iorq ? -val_prev-1 : val_prev; // return negative value from bus - 1 for IORQ (if DATA bus is 0x00 during IRQ acknowledge, return -1)
+    return is_iorq ? (val_prev | (Z80_REQUEST_INT << 8)) : val_prev; // return flag in higher byte for IORQ
 }
 
-static INLINE int16_t yield_mem_or_sniff_iorq(uint8_t n) {
+static INLINE uint16_t yield_mem_or_sniff_iorq(uint8_t n) {
     gpio_put_masked(PIN_BITS_DATA, n);          /* prepare data to DATA bus output buffer */
     uint32_t control_pins = 0;
     // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
@@ -107,7 +108,7 @@ static INLINE int16_t yield_mem_or_sniff_iorq(uint8_t n) {
             val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
         // wait for both RD anf IORQ to go high (indicating the end of the operation)
         } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
-        return -val_prev-1; // return negative value from bus - 1 for IORQ (if DATA bus is 0x00 during IRQ acknowledge, return -1)
+        return (val_prev | (Z80_REQUEST_INT << 8)); // return flag in higher byte for IORQ
     } else {
         gpio_set_dir_out_masked(PIN_BITS_DATA);     /* set DATA bus to output mode to provide emulated data to real Z80 */
         while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
