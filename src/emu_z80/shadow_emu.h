@@ -1,6 +1,6 @@
 #pragma once
 
-#include "picolib_scaffold.h"
+#include "../global.h"
 
 void shadow_emulator();
 void printMemoryReadCounter();

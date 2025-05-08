@@ -2,7 +2,8 @@
 
 #include "../pinmap.h"
 #include "hardware/gpio.h"
-#include "emu_z80/picolib_scaffold.h"
+#include <stdint.h>
+#include "global.h"
 
 // ROM 0x0038 addr = IM1 IRQ ISR
 // ROM 0x0066 addr = NMI ISR
@@ -59,7 +60,7 @@ static INLINE FASTCODE uint8_t sniff_mem_wr() {
     return val;
 }
 
-static INLINE FASTCODE s16 sniff_mem_rd() {
+static INLINE FASTCODE int16_t sniff_mem_rd() {
     while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
     uint8_t val = 0;
     uint8_t val_prev = 0;
@@ -75,8 +76,8 @@ static INLINE FASTCODE s16 sniff_mem_rd() {
  * Sniff memory read or IRQ acknowledge operation.
  * Return positive byte value from DATA bus for read operation or negative DATA bus value for IRQ acknowledge.
  */
-static INLINE FASTCODE s16 sniff_mem_rd_or_iorq() {
-    u32 control_pins = 0;
+static INLINE FASTCODE int16_t sniff_mem_rd_or_iorq() {
+    uint32_t control_pins = 0;
     // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
     while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
     bool is_iorq = (control_pins & PIN_BIT_IORQ) == 0;
@@ -92,9 +93,9 @@ static INLINE FASTCODE s16 sniff_mem_rd_or_iorq() {
     return is_iorq ? -val_prev-1 : val_prev; // return negative value from bus - 1 for IORQ (if DATA bus is 0x00 during IRQ acknowledge, return -1)
 }
 
-static INLINE s16 yield_mem_or_sniff_iorq(u8 n) {
+static INLINE int16_t yield_mem_or_sniff_iorq(uint8_t n) {
     gpio_put_masked(PIN_BITS_DATA, n);          /* prepare data to DATA bus output buffer */
-    u32 control_pins = 0;
+    uint32_t control_pins = 0;
     // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
     while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
     bool is_iorq = (control_pins & PIN_BIT_IORQ) == 0;
@@ -130,7 +131,7 @@ static INLINE FASTCODE uint8_t sniff_io_rd() {
 }
 
 static INLINE FASTCODE uint8_t sniff_io_wr() {
-     u32 control_pins = 0;
+     uint32_t control_pins = 0;
     // wait for both WR and IORQ to go low
     while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_IORQ)))  != 0) {  }
     //wait_z80_cycles(1); // wait for RAM to respond

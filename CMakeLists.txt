@@ -33,12 +33,20 @@ project(zx_tiny_loader C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Add executable. Default name is the project name, version 0.1
+# Z80 CPU emulator + Zeta library deps
+set(Z80_SHARED_LIBS                 NO  CACHE BOOL "")
+set(Z80_WITH_Q                      YES CACHE BOOL "")
+set(Z80_WITH_ZILOG_NMOS_LD_A_IR_BUG YES CACHE BOOL "")
+set(Zeta_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/Zeta/API")
+set(Zeta_VERSION "0.1")
+add_subdirectory(lib/Z80)
 
+
+
+# Add executable. Default name is the project name, version 0.1
 add_executable(zx_tiny_loader
         main.c
         src/emu_z80/emu_z80_debug.c
-        src/emu_z80/picolib_emu/emu.c
         src/emu_z80/shadow_emu.c
         src/emu_z80/flight_recorder.c
         src/sna_loader.c
@@ -47,7 +55,9 @@ add_executable(zx_tiny_loader
 # Add pico_multicore which is required for multicore functionality
 target_link_libraries(zx_tiny_loader
         pico_stdlib
-        pico_multicore)
+        pico_multicore
+        Z80
+        )
 
 target_compile_definitions(zx_tiny_loader PRIVATE
         PICO_DEFAULT_UART_TX_PIN=44

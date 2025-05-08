@@ -1,0 +1,312 @@
+                        ; --------------------------------------
+                        ; zasm: assemble "testrom.asm"
+                        ; date: 2025-05-07 21:01:01
+                        ; --------------------------------------
+
+
+                        ; ================================================================
+                        ;   Example source with target 'rom'
+                        ;   Copyright  (c)  Günter Woigk 1994 - 2017
+                        ;                   mailto:kio@little-bat.de
+                        ; ================================================================
+                        
+                        
+                        ; same as 'bin', except that the default fill byte for 'defs' etc. is 0xff
+                        ; this example defines a 16k Eprom visible at address 0x0000 and an area
+                        ; for variables at 0x5B00 upward, which may be used for the ZX Spectrum
+                        
+                        
+                        #target rom
+                        
+                        
+5B00:                   #data VARIABLES, 0x5B00
+                        
+                        ; define some variables here
+5B00:                   VAR1:
+5B00: 00                        defb 0
+5B01:                   VAR2:
+5B01: 00                        defb 0
+5B02:                   results:
+5B02: 00000000              DS 1000    ; místo pro výsledky
+5B06: 00...             
+                        
+                        
+0000:                   #code EPROM, 0, 0x4000
+                        
+                        
+                        ; reset vector
+0000: F3       [ 4]     RST0::  di
+0001: C36D00   [14]             jp      init
+0004: FFFFFFFF                  defs    0x08-$
+                        
+0008: C9       [10]     RST1::  ret
+0009: FFFFFFFF                  defs    0x10-$
+000D: FFFFFF            
+                        
+0010: C9       [10]     RST2::  ret
+0011: FFFFFFFF                  defs    0x18-$
+0015: FFFFFF            
+                        
+0018: C9       [10]     RST3::  ret
+0019: FFFFFFFF                  defs    0x20-$
+001D: FFFFFF            
+                        
+0020: C9       [10]     RST4::  ret
+0021: FFFFFFFF                  defs    0x28-$
+0025: FFFFFF            
+                        
+0028: C9       [10]     RST5::  ret
+0029: FFFFFFFF                  defs    0x30-$
+002D: FFFFFF            
+0030: C9       [20]     	ret
+                        
+0031: C9       [10]     RST6::  ret
+0032: FFFFFFFF                  defs    0x38-$
+0036: FFFF              
+                        
+                        ; maskable interrupt handler in interrupt mode 1:
+0038: ED5F     [ 9]     RST7::  ld      a, r
+003A: 32015B   [22]             ld      (VAR2), a            ; store R register to RAM (check the shadow-emulated RAM WR here)
+                                ;jr      $                    ; infinite loop
+003D: FB       [26]             ei
+003E: ED4D     [40]             reti
+                        
+                        
+                        ; non maskable interrupt:
+                        ; e.g. call debugger and on exit resume.
+                        
+0040: FFFFFFFF                  defs    0x66-$
+0044: FF...             
+0066: ED57     [ 9]     NMI::   ld      a,i
+0068: F5       [20]             push    af
+0069: F1       [30]             pop     af
+006A: E0       [35|41]          ret     po              ; interrupts were disabled
+006B: FB       [39]             ei                      ; else re-eanble interrupts
+006C: C9       [49]             ret
+                        
+                        
+                        ; init:
+                        ; globals and statics initialization
+                        ; starts with copying the fixed data:
+                        
+006D:                   init:
+006D: ED5F     [ 9]             ld      a,r
+006F: 32005B   [22]             ld      (VAR1), a            ; store R register to RAM (check the shadow-emulated RAM WR here)
+0072: 31FFFF   [32]             ld      sp,$ffff
+                        
+0075:                   z80_undoc:
+                        ; Start - inicializace
+0075: 21025B   [10]         LD HL, results   ; Kam budeme ukládat výsledky
+                        
+                        ; --- Test 1: Undocumented LD instructions ---
+0078: 3E55     [17]         LD A, 0x55
+007A: 5F       [21]         LD E, A
+007B: 16AA     [28]         LD D, 0xAA
+                        
+007D: 77       [35]         LD (HL), A       ; normální zápis
+007E: 23       [41]         INC HL
+                        
+                            ; Použijeme nedokumentovanou instrukci LD (IX+0),A
+                            ; Prefix DD + 77 00
+007F: DD7700                DB 0xDD, 0x77, 0x00
+                            ; Pokud CPU ignoruje 0xDD správně -> žádný problém
+                            ; Špatné klony tu můžou spadnout nebo špatně zapsat
+                        
+0082: 77       [48]         LD (HL), A       ; zapíšeme hodnotu po "trap testu"
+0083: 23       [54]         INC HL
+                        
+                        ; --- Test 2: DD/FD prefix flooding ---
+0084: 013412   [64]         LD BC, 0x1234
+                        ;    ; Hodně DD prefixů před normální instrukcí
+                        ;    DB 0xDD, 0xDD, 0xDD, 0x01, 0x78, 0x56  ; LD BC,5678h ?
+                        ; my Z80 clone do not handle this correctly
+                        
+0087: 70       [71]         LD (HL), B       ; uložíme B
+0088: 23       [77]         INC HL
+0089: 71       [84]         LD (HL), C       ; uložíme C
+008A: 23       [90]         INC HL
+                        
+                        ; --- Test 3: R register behavior ---
+008B: ED5F     [99]         LD A, R          ; Přečteme registr R
+008D: 77       [106]        LD (HL), A
+008E: 23       [112]        INC HL
+                        
+                            ; proveď nějakou instrukci, která by měla zvýšit R
+008F: 00       [116]        NOP
+0090: 00       [120]        NOP
+0091: 00       [124]        NOP
+                        
+0092: ED5F     [133]        LD A, R
+0094: 77       [140]        LD (HL), A
+0095: 23       [146]        INC HL
+                        
+0096:                   flags_bit_3_5_test:
+0096: 3E00     [ 7]         LD A, 0x00
+0098: 37       [11]         SCF
+0099: F5       [22]         PUSH AF
+                        ;    INC HL
+                        
+009A: 3EFF     [29]         LD A, 0xFF
+009C: 37       [33]         SCF
+009D: F5       [44]         PUSH AF
+                        ;    INC HL
+                        
+009E: 3EAA     [51]         LD A, 0xAA
+00A0: 2F       [55]         CPL
+00A1: F5       [66]         PUSH AF
+                        ;    INC HL
+                        
+00A2: 3E55     [73]         LD A, 0x55
+00A4: 2F       [77]         CPL
+00A5: F5       [88]         PUSH AF
+                        ;    INC HL
+                        
+00A6:                   io_timing_test:
+                                ; --- Test 4: T-states measurement using R ---
+                        
+                        ; Připrav port a registr
+00A6: 01FE00   [10]         LD BC, 0x00FE
+                        
+                        ; --- Měření NOP 8x ---
+00A9: ED5F     [19]         LD A, R            ; Načti počáteční R
+00AB: 57       [23]         LD D, A
+                        
+00AC: 0608     [30]         LD B, 8
+00AE:                   Measure_NOP_R:
+00AE: 00       [ 4]         NOP
+00AF: 10FD     [12|17]      DJNZ Measure_NOP_R
+                        
+00B1: ED5F     [21]         LD A, R            ; Načti koncové R
+00B3: 92       [25]         SUB D
+00B4: 77       [32]         LD (HL), A         ; Výsledek rozdílu po NOP do results
+00B5: 23       [38]         INC HL
+                        
+                        ; --- Měření IN A,(C) 8x ---
+00B6: 01FE00   [48]         LD BC, 0x00FE
+00B9: ED5F     [57]         LD A, R            ; Načti počáteční R
+00BB: 57       [61]         LD D, A
+                        
+00BC: 0608     [68]         LD B, 8
+00BE:                   Measure_IN_R:
+00BE: ED78     [12]         IN A,(C)
+00C0: 10FC     [20|25]      DJNZ Measure_IN_R
+                        
+00C2: ED5F     [29]         LD A, R
+00C4: 92       [33]         SUB D
+00C5: 77       [40]         LD (HL), A         ; Výsledek rozdílu po IN do results
+00C6: 23       [46]         INC HL
+                        
+                        ; --- Měření OUT (C),A 8x ---
+00C7: 01FE00   [56]         LD BC, 0x00FE
+00CA: 3EA5     [63]         LD A, 0xA5         ; Hodnota k zápisu
+                        
+00CC: ED5F     [72]         LD A, R            ; Načti počáteční R
+00CE: 57       [76]         LD D, A
+                        
+00CF: 0608     [83]         LD B, 8
+00D1:                   Measure_OUT_R:
+00D1: ED79     [12]         OUT (C),A
+00D3: 10FC     [20|25]      DJNZ Measure_OUT_R
+                        
+00D5: ED5F     [29]         LD A, R
+00D7: 92       [33]         SUB D
+00D8: 77       [40]         LD (HL), A         ; Výsledek rozdílu po OUT do results
+00D9: 23       [46]         INC HL
+                        
+00DA:                   irq_test:
+                        
+                                ;im      1                    ; set IM 1 mode
+00DA: CD3830   [17]             call setup_im2
+00DD: ED5E     [25]             im      2                    ; set IM 2 mode
+00DF: FB       [29]             ei                           ; enable maskable IRQ
+00E0: 18FE     [41]             jr      $                    ; and wait (for interrupt)
+                        
+                        
+                        ; Make sure this is on a 256 byte boundary
+                                ORG           $2000
+2000:                   IM2Table:
+2000: 30303030                  defs          257,$30  ; high byte of the IM2Routine address
+2004: 30...             
+                        
+                        ; Make sure this is on 0xMNMN boundary sice ZX Spectrum cannot guarantee even number on DATA bus during IRQ ACK so we may not get word-aligned address
+                                ORG           $3030
+                        
+                        ; Basically nothing
+3030:                   IM2Routine:  
+3030: ED5F     [ 9]             ld      a, r
+3032: 32015B   [22]             ld      (VAR2), a            ; store R register to RAM (check the shadow-emulated RAM WR here)
+                                ;jr      $                    ; infinite loop
+3035: FB       [26]             ei
+3036: ED4D     [40]             reti
+                        
+                        
+                        
+3038:                   setup_im2:
+                        
+                        ; Setup the 128 entry vector table
+3038: F3       [ 4]                   di
+                        
+3039: 210020   [14]                   ld            hl, IM2Table
+303C: 110120   [24]                   ld            de, IM2Table+1
+303F: 010001   [34]                   ld            bc, 256
+                        
+                                      ; Setup the I register (the high byte of the table)
+3042: 7C       [38]                   ld            a, h
+3043: ED47     [47]                   ld            i, a
+                        
+                                      ; filling the table with the address of the IM2Routine makes no sense for in-ROM version, see fixed $30 value in IM2Table
+                        
+                                      ; Set the first entries in the table to $FC
+                                      ;ld            a, $FC
+                                      ;ld            (hl), a
+                        
+                                      ; Copy to all the remaining 256 bytes
+                                      ;ldir
+                        
+                        
+3045: C9       [57]                   ret
+                        
+                        
+                        
+
+
+; +++ segments +++
+
+#DATA VARIABLES  = $5B00 = 23296,  size = $03EA =  1002
+#CODE EPROM      = $0000 =     0,  size = $4000 = 16384
+
+; +++ global symbols +++
+
+EPROM              = $0000 =     0  EPROM     testrom.asm:27 (unused)
+EPROM_end          = $4000 = 16384  EPROM     testrom.asm:27 (unused)
+EPROM_size         = $4000 = 16384  EPROM     testrom.asm:27 (unused)
+IM2Routine         = $3030 = 12336  EPROM     testrom.asm:220 (unused)
+IM2Table           = $2000 =  8192  EPROM     testrom.asm:213
+Measure_IN_R       = $00BE =   190  EPROM     testrom.asm:176
+Measure_NOP_R      = $00AE =   174  EPROM     testrom.asm:161
+Measure_OUT_R      = $00D1 =   209  EPROM     testrom.asm:193
+NMI                = $0066 =   102  EPROM     testrom.asm:66 (unused)
+RST0               = $0000 =     0  EPROM     testrom.asm:31 (unused)
+RST1               = $0008 =     8  EPROM     testrom.asm:35 (unused)
+RST2               = $0010 =    16  EPROM     testrom.asm:38 (unused)
+RST3               = $0018 =    24  EPROM     testrom.asm:41 (unused)
+RST4               = $0020 =    32  EPROM     testrom.asm:44 (unused)
+RST5               = $0028 =    40  EPROM     testrom.asm:47 (unused)
+RST6               = $0031 =    49  EPROM     testrom.asm:51 (unused)
+RST7               = $0038 =    56  EPROM     testrom.asm:55 (unused)
+VAR1               = $5B00 = 23296  VARIABLES testrom.asm:19
+VAR2               = $5B01 = 23297  VARIABLES testrom.asm:21
+VARIABLES          = $5B00 = 23296  VARIABLES testrom.asm:16 (unused)
+VARIABLES_end      = $5EEA = 24298  VARIABLES testrom.asm:16 (unused)
+VARIABLES_size     = $03EA =  1002  VARIABLES testrom.asm:16 (unused)
+flags_bit_3_5_test = $0096 =   150  EPROM     testrom.asm:129 (unused)
+init               = $006D =   109  EPROM     testrom.asm:78
+io_timing_test     = $00A6 =   166  EPROM     testrom.asm:150 (unused)
+irq_test           = $00DA =   218  EPROM     testrom.asm:202 (unused)
+results            = $5B02 = 23298  VARIABLES testrom.asm:23
+setup_im2          = $3038 = 12344  EPROM     testrom.asm:229
+z80_undoc          = $0075 =   117  EPROM     testrom.asm:83 (unused)
+
+
+total time: 0.0025 sec.
+no errors

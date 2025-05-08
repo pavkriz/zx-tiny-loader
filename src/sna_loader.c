@@ -1,6 +1,7 @@
 #include "sna_loader.h"
-#include "emu_z80/picolib_scaffold.h"
+#include "global.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include "../test_snapshot_ram_hate.h"
 #include "../test_snapshot_z80_hate.h"
 
@@ -16,10 +17,10 @@
 #define ROM_ADDR_COMMAND_SIZE 0x1F04
 
 
-u8 snapshot_loading = 0;
-u16 snapshot_ram_index = 0;
-u8* snapshot_ram_ptr;
-u16 snapshot_rom_page_out_address = 0x0000;
+uint8_t snapshot_loading = 0;
+uint16_t snapshot_ram_index = 0;
+uint8_t* snapshot_ram_ptr;
+uint16_t snapshot_rom_page_out_address = 0x0000;
 
 typedef struct {
     uint8_t  a, f;
@@ -100,7 +101,7 @@ uint8_t highByte(uint16_t n) {
 }
 
 
-u8 FASTCODE NOFLASH(snapshot_init)(uint8_t* rom) { 
+uint8_t FASTCODE NOFLASH(snapshot_init)(uint8_t* rom) { 
     snapshot_loading = 1; 
     snapshot_ram_index = 0; 
     snapshot_ram_ptr = test_snapshot_ram;

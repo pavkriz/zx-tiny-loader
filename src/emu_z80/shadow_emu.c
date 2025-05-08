@@ -1,32 +1,32 @@
 #if USE_EMU	
 
 #include "shadow_emu.h"
-#include "picolib_emu/emu.h"
+#include "../global.h"
 #include "didaktik_gama_1989_rom.h"
-#include "testrom.h"
+#include "../../rom/testrom.h"
 #include <stdio.h>
 #include "../yielding_rom_macros.h"
 #include "hardware/timer.h"
 #include "emu_z80_debug.h"
 #include "../sna_loader.h"
-#include "../bios_rom.h"
+#include "../../rom/bios.h"
 #include "flight_recorder.h"
+#include <Z/constants/pointer.h>
+#include <Z/types/integral.h>
+
+#include <Z80.h>
 
 #define ZX_ROM_SIZE 0x4000
+#define Z80_MEMSIZE 0x10000
 
-sZ80	z80cpu;
-u8 Memory[Z80_MEMSIZE]; // memory 64 KB
-// ROM pointer, default to "Memory"
-u8* ROM = Memory;
+typedef struct {
+        zusize  cycles;
+        zuint8  memory[Z80_MEMSIZE];
+        Z80     cpu;
+} Machine;
 
-u8 last_value_written_to_0xff4a = 0;
-u8 last_value_written_to_0xff4a_at_pc = 0;
-u8 last_value_written_to_0xff4a_hl = 0;
-u8 last_value_written_to_0xff4a_hl2 = 0;
-u8 last_value_written_to_0xff4a_processing_m1_opcode = 0;
-u8 last_value_written_to_0xff4a_processing_m1_pc = 0;
-u8 last_value_written_to_0xff4a_previous_m1_opcode = 0;
-u8 last_value_written_to_0xff4a_previous_m1_pc = 0;
+Machine machine;
+
 bool next_mem_wr_is_push_f = false;
 
 void FASTCODE NOFLASH(EmuInitializeRealZ80)()
@@ -71,7 +71,17 @@ void FASTCODE NOFLASH(EmuInitializeRealZ80)()
 
 void FASTCODE NOFLASH(DumpSplitBrain)()
 {
+	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
+	printf("SP: 0x%04X\n", machine.cpu.sp.uint16_value);
+	printf("A: 0x%02X\n", machine.cpu.af.uint16_value >> 8);
+	printf("F: 0x%02X\n", machine.cpu.af.uint16_value & 0xFF);
+	printf("BC: 0x%04X\n", machine.cpu.bc.uint16_value);
+	printf("DE: 0x%04X\n", machine.cpu.de.uint16_value);
+	printf("HL: 0x%04X\n", machine.cpu.hl.uint16_value);
+	printf("R: 0x%02X\n", (machine.cpu.r & 0b01111111) | (machine.cpu.r7 & 0b10000000));
+
 	flight_recorder_dump();
+	/*
 	printf("Processing M1 opcode: 0x%02X\n", z80cpu.processing_m1_opcode);
 	printf("Previous M1 opcode: 0x%02X\n", z80cpu.previous_m1_opcode);
 	printf("Processing M1 PC: 0x%04X\n", z80cpu.processing_m1_pc);
@@ -93,15 +103,17 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 	printf("Last value written to 0xff4a HL: 0x%04X\n", last_value_written_to_0xff4a_hl);
 	printf("Last value written to 0xff4a HL2: 0x%04X\n", last_value_written_to_0xff4a_hl2);
 	printMemoryM1ReadCounter();
+	*/
 	while (1) { } // stop here
 }
 
 // read memory
-u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
+zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 {
-	s16 real_val;
-	u8 val;
+	int16_t real_val;
+	uint8_t val;
 
+/*
 	if ((addr < ZX_ROM_SIZE) && snapshot_is_loading()) {
 		// read from emulated ROM
 		if (addr == ROM_ADDR_COMMAND_BYTE_BUFFER) {
@@ -110,7 +122,7 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 			// This way we mimmic something like INIR instruction behaviour but from the memory instead of I/O port.
 			val = snapshot_get_next_byte();
 		} else {
-			val = ROM[addr];
+			val = self->memory[addr];
 		}
 		real_val = yield_mem_or_sniff_iorq(val);
 		if (addr == snapshot_get_rom_page_out_address()) {
@@ -118,13 +130,17 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 			enable_zx_rom();
 			snapshot_loading_finished();			
 		}
+		*/
+	if (addr < ZX_ROM_SIZE) {
+		val = self->memory[addr];
+		real_val = yield_mem_or_sniff_iorq(val);
 	} else {
 		// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
 		// TODO check also unexpected memory write here indicating CALL (PUSH PC) due to entering NMI ISR
 		real_val = sniff_mem_rd_or_iorq();
 		if (addr >= ZX_ROM_SIZE) {
 			// RAM, we shadow-emulate it
-			val = Memory[addr];
+			val = self->memory[addr];
 		} else {
 			// ROM, we read from DATA bus (we may shadow emulate it in future, but now we don't do it yet)
 			val = real_val;
@@ -132,10 +148,12 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 	}
 
 	if (real_val < 0) {
+		printf("IRQ occured, TBD\n");
+		/*
 		resetMemoryM1ReadSinceIrqCounter();
 		// this is IRQ acknowledge
-		u8 opcode_at_isr;
-		s16 data_bus_val = -real_val-1; // convert to positive value		
+		uint8_t opcode_at_isr;
+		int16_t data_bus_val = -real_val-1; // convert to positive value		
 		flight_recorder_log_irq(z80cpu.pc);
 		// depending on the IM mode, use or not use the value from the DATA bus
 		// update CPU state that we entered ISR
@@ -151,10 +169,10 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 			opcode_at_isr = z80cpu.readmem(z80cpu.pc);
 		} else {	// IM2
 			// calculate the pointer to vector table
-			u16 isr_l_pointer = (z80cpu.i << 8) | (data_bus_val & 0xFF);
+			uint16_t isr_l_pointer = (z80cpu.i << 8) | (data_bus_val & 0xFF);
 			// read from vector table the ISR address
-			u8 isr_pc_l = z80cpu.readmem(isr_l_pointer);
-			u8 isr_pc_h = z80cpu.readmem(isr_l_pointer + 1);
+			uint8_t isr_pc_l = z80cpu.readmem(isr_l_pointer);
+			uint8_t isr_pc_h = z80cpu.readmem(isr_l_pointer + 1);
 			// set PC to ISR address and fetch the instruction
 			z80cpu.pc = (isr_pc_h << 8) | isr_pc_l;
 			opcode_at_isr = z80cpu.readmem(z80cpu.pc);
@@ -167,8 +185,10 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 		z80cpu.r += 1; // sync R register with real Z80 (why this??)
 		flight_recorder_log_mem_rd(z80cpu.pc, opcode_at_isr, true);
 		return opcode_at_isr;
+		*/
 	} else {
-		flight_recorder_log_mem_rd(addr, val, z80cpu.pc == addr);
+		//int is_at_pc = ((zuint16)(self->cpu.pc) == addr);
+		flight_recorder_log_mem_rd(addr, val, true); // TODO check PC flag
 		if (real_val != val) {
 			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, val, real_val);
 			DumpSplitBrain();
@@ -178,10 +198,11 @@ u8 FASTCODE NOFLASH(EmuGetMem)(u16 addr)
 }
 
 // write memory
-void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
+void FASTCODE NOFLASH(machine_cpu_write)(Machine *self, zuint16 addr, zuint8 data)
 {
-	u8 real_val = sniff_mem_wr();
+	uint8_t real_val = sniff_mem_wr();
 	bool ignoreDifference = false;
+	/*
 	if (z80cpu.processing_m1_opcode == 0xF5) {
 		// doing PUSH AF
 		if (next_mem_wr_is_push_f) {
@@ -202,40 +223,31 @@ void FASTCODE NOFLASH(EmuSetMem)(u16 addr, u8 data)
 			next_mem_wr_is_push_f = true;
 		}
 	}
+	*/
 
 	flight_recorder_log_mem_wr(addr, data);
 
-	if (data != real_val && !ignoreDifference) {
+	if ((data != real_val) && !ignoreDifference) {
 		printf("Emulation split brain - write to memory: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
 		DumpSplitBrain();
 	}
 	if (addr >= 0x4000) { // write only to RAM
-		Memory[addr] = real_val;
-		if (addr == 0xff4a) {			
-			last_value_written_to_0xff4a = data;
-			last_value_written_to_0xff4a_at_pc = z80cpu.pc;
-			last_value_written_to_0xff4a_processing_m1_opcode = z80cpu.processing_m1_opcode;
-			last_value_written_to_0xff4a_previous_m1_opcode = z80cpu.previous_m1_opcode;
-			last_value_written_to_0xff4a_processing_m1_pc = z80cpu.processing_m1_pc;
-			last_value_written_to_0xff4a_previous_m1_pc = z80cpu.previous_m1_pc;
-			last_value_written_to_0xff4a_hl = z80cpu.hl;
-			last_value_written_to_0xff4a_hl2 = z80cpu.hl2;
-		}
+		self->memory[addr] = real_val;
 	}
 }
 
 // read port
-u8 FASTCODE NOFLASH(EmuGetPort)(u16 addr)
+zuint8 FASTCODE NOFLASH(machine_cpu_in)(Machine *self, zuint16 addr)
 {
-	u8 val = sniff_io_rd();
+	uint8_t val = sniff_io_rd();
 	flight_recorder_log_io_rd(addr, val);
 	return val;
 }
 
 // write port
-void FASTCODE NOFLASH(EmuSetPort)(u16 addr, u8 data)
+void FASTCODE NOFLASH(machine_cpu_out)(Machine *self, zuint16 addr, zuint8 data)
 {
-	u8 real_val = sniff_io_wr();
+	uint8_t real_val = sniff_io_wr();
 	flight_recorder_log_io_wr(addr, data);
 	if (data != real_val) {
 		printf("Emulation split brain - write to IO: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
@@ -249,7 +261,7 @@ void FASTCODE NOFLASH(EmuSetPort)(u16 addr, u8 data)
 	}
 }
 
-void shadow_emulator() {
+void FASTCODE NOFLASH(shadow_emulator)() {
 	// for now set all GPIOs as inputs
 	for (int i = 0; i < 32; i++) {
         gpio_init(i);
@@ -257,25 +269,39 @@ void shadow_emulator() {
         gpio_disable_pulls(i);
 	}
 
-	// initialize Z80 table
-	Z80_InitTab();
+	// initialize Z80
+	machine.cpu.context      = &machine;
+	machine.cpu.fetch_opcode =
+	machine.cpu.fetch        =
+	machine.cpu.nop          =
+	machine.cpu.read         = (Z80Read )machine_cpu_read;
+	machine.cpu.write        = (Z80Write)machine_cpu_write;
+	machine.cpu.in           = (Z80Read )machine_cpu_in;
+	machine.cpu.out          = (Z80Write)machine_cpu_out;
+	machine.cpu.halt         = Z_NULL;
+	machine.cpu.nmia         = Z_NULL;
+	machine.cpu.inta         = Z_NULL;
+	machine.cpu.int_fetch    = Z_NULL;
+	machine.cpu.ld_i_a       = Z_NULL;
+	machine.cpu.ld_r_a       = Z_NULL;
+	machine.cpu.reti         = Z_NULL;
+	machine.cpu.retn         = Z_NULL;
+	machine.cpu.hook         = Z_NULL;
+	machine.cpu.illegal      = Z_NULL;
+	machine.cpu.options      = Z80_MODEL_ZILOG_NMOS;
 
 	// copy ROM to memory
-	for (int i = 0; i < sizeof(testrom); i++) {
+	for (int i = 0; i < sizeof(testrom_rom); i++) {
 		//Memory[i] = didaktik_gama_1989_rom[i];
 		//Memory[i] = testrom[i];
-		Memory[i] = bios_rom[i];
+		machine.memory[i] = testrom_rom[i];
 	}
 
-	snapshot_init(Memory); // initialize snapshot loading
+	//snapshot_init(machine.memory); // initialize snapshot loading
 
+	z80_power(&machine.cpu, Z_FALSE);
 
-	// setup callback functions
-	z80cpu.readmem = EmuGetMem;
-	z80cpu.writemem = EmuSetMem;
-	z80cpu.readport = EmuGetPort;
-	z80cpu.writeport = EmuSetPort;
-
+	disable_zx_rom(); // disable internal ROM
     // except /ROMCS and /RESET which will be output
     //gpio_init(PIN_NUMBER_ROMCS);
     // gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT);
@@ -287,10 +313,16 @@ void shadow_emulator() {
     gpio_put(PIN_NUMBER_RESET, 0);
     busy_wait_ms(100); // wait some time
     // set /RESET high to let the CPU run
-    //gpio_put(PIN_NUMBER_RESET, 1);
+    gpio_put(PIN_NUMBER_RESET, 1);
 
 
-	Z80_Start(&z80cpu, 0, 0);
+	z80_run(&machine.cpu, 50000);
+	printf("Emulation finished\n");
+	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
+	flight_recorder_dump();
+	while (1) {
+		// wait here
+	}
 }
 
 #endif // USE_EMU

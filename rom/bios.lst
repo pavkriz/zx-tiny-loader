@@ -1,6 +1,6 @@
                         ; --------------------------------------
                         ; zasm: assemble "bios.asm"
-                        ; date: 2025-05-02 21:29:17
+                        ; date: 2025-05-07 21:00:57
                         ; --------------------------------------
 
 
@@ -185,5 +185,5 @@ command_snap_load    = $00A1 =   161  EPROM     bios.asm:108
 init                 = $0068 =   104  EPROM     bios.asm:74
 
 
-total time: 0.0011 sec.
+total time: 0.0021 sec.
 no errors
