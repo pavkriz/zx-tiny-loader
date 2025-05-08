@@ -54,6 +54,8 @@
 |                                                                              |
 '=============================================================================*/
 
+#include "../../../src/global.h"
+
 #ifndef Z80_EXTERNAL_HEADER
 #	include <Z/constants/pointer.h>
 #	include <Z/macros/bitwise.h>
@@ -78,7 +80,7 @@
 #ifdef Z80_WITH_PRECOMPUTED_DAA
 #	define H(value) Z_UINT16(0x##value)
 
-	static zuint16 const daa_af_table[2048] = {
+	static zuint16 const NOFLASH_CONST(daa_af_table)[2048] = {
 	/* HNC */
 	/* 000	0	 1	  2	   3	    4	     5	      6	       7	8	 9	  A	   B	    C	     D	      E	       F */
 	/* 0 */ H(0044), H(0100), H(0200), H(0304), H(0400), H(0504), H(0604), H(0700), H(0808), H(090C), H(1010), H(1114), H(1214), H(1310), H(1414), H(1510),
@@ -395,7 +397,7 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 /* MARK: - Interrupt Mode 0: PC Decrements for Unprefixed Instructions */
 
 #ifdef Z80_WITH_FULL_IM0
-	static zuint8 const im0_pc_decrement_table[256] = {
+	static zuint8 const NOFLASH_CONST(im0_pc_decrement_table)[256] = {
 	/*	0  1  2  3  4  5  6  7	8  9  A  B  C  D  E  F */
 	/* 0 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	/* 1 */ 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -464,7 +466,7 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 
 #	define PF_PARITY pf_parity
 #else
-	static zuint8 const pf_parity_table[256] = {
+	static zuint8 const NOFLASH_CONST(pf_parity_table)[256] = {
 	/*	0  1  2  3  4  5  6  7	8  9  A  B  C  D  E  F */
 	/* 0 */ 4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
 	/* 1 */ 0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
@@ -538,7 +540,7 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 	       | 111 = a | 111 = a   |
 	       '--------------------*/
 
-static zusize const j_k_table[8] = {
+static zusize const NOFLASH_CONST(j_k_table)[8] = {
 	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_1),
 	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_0),
 	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_1),
@@ -548,7 +550,7 @@ static zusize const j_k_table[8] = {
 	0,
 	Z_MEMBER_OFFSET(Z80, af.uint8_values.at_1)};
 
-static zusize const o_p_table[8] = {
+static zusize const NOFLASH_CONST(o_p_table)[8] = {
 	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_1),
 	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_0),
 	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_1),
@@ -581,19 +583,19 @@ static zusize const o_p_table[8] = {
 '----------'   | 11 = sp | 11 = af | 11 = sp |
 	       '----------------------------*/
 
-static zusize const s_table[4] = {
+static zusize const NOFLASH_CONST(s_table)[4] = {
 	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
 	Z_MEMBER_OFFSET(Z80, de.uint16_value),
 	Z_MEMBER_OFFSET(Z80, hl.uint16_value),
 	Z_MEMBER_OFFSET(Z80, sp.uint16_value)};
 
-static zusize const t_table[4] = {
+static zusize const NOFLASH_CONST(t_table)[4] = {
 	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
 	Z_MEMBER_OFFSET(Z80, de.uint16_value),
 	Z_MEMBER_OFFSET(Z80, hl.uint16_value),
 	Z_MEMBER_OFFSET(Z80, af.uint16_value)};
 
-static zusize const w_table[4] = {
+static zusize const NOFLASH_CONST(w_table)[4] = {
 	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
 	Z_MEMBER_OFFSET(Z80, de.uint16_value),
 	Z_MEMBER_OFFSET(Z80, xy.uint16_value),
@@ -623,7 +625,7 @@ static zusize const w_table[4] = {
 	       | 111 = m  |
 	       '---------*/
 
-static zuint8 const z_table[8] = {ZF, ZF, CF, CF, PF, PF, SF, SF};
+static zuint8 const NOFLASH_CONST(z_table)[8] = {ZF, ZF, CF, CF, PF, PF, SF, SF};
 
 
 static Z_ALWAYS_INLINE zsint zzz(Z80 const *self, zuint8 mask)
@@ -654,7 +656,7 @@ static Z_ALWAYS_INLINE zsint zzz(Z80 const *self, zuint8 mask)
 	       | 101 = dec  szybxv1. |
 	       '--------------------*/
 
-static void uuu(Z80 *self, zuint8 offset, zuint8 rhs)
+static void FASTCODE NOFLASH(uuu)(Z80 *self, zuint8 offset, zuint8 rhs)
 	{
 	zuint8 t, f;
 
@@ -739,7 +741,7 @@ static void uuu(Z80 *self, zuint8 offset, zuint8 rhs)
 	}
 
 
-static zuint8 vvv(Z80 *self, zuint8 offset, zuint8 value)
+static zuint8 FASTCODE NOFLASH(vvv)(Z80 *self, zuint8 offset, zuint8 value)
 	{
 	zuint8 dec = DATA[offset] & 1;
 	zuint8 nf  = (zuint8)(dec << 1);
@@ -772,7 +774,7 @@ static zuint8 vvv(Z80 *self, zuint8 offset, zuint8 value)
 	       | 111 = srl |
 	       '----------*/
 
-static zuint8 ggg(Z80 *self, zuint8 offset, zuint8 value)
+static zuint8 FASTCODE NOFLASH(ggg)(Z80 *self, zuint8 offset, zuint8 value)
 	{
 	zuint8 cf;
 
@@ -883,7 +885,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 
 /* MARK: - Function Shortcuts and Reusable Code */
 
-#define INSN(name)	     static zuint8 name(Z80 *self)
+#define INSN(name)	     static zuint8 FASTCODE NOFLASH(name)(Z80 *self)
 #define N(offset)	     ((DATA[offset] >> 3) & 7)
 #define Z(mask)		     zzz(self, mask)
 #define U0(value)	     uuu(self, 0, value)
@@ -2059,7 +2061,7 @@ INSN(hook	 );
 #	define reti_retn retn
 #endif
 
-static Insn const insn_table[256] = {
+static Insn const NOFLASH_CONST(insn_table)[256] = {
 /*	0	     1		 2	      3		   4		5	  6	       7	 8	      9		 A	      B		  C	       D	  E	     F */
 /* 0 */ nop,	     ld_SS_WORD, ld_vbc_a,    inc_SS,	   V_J,		V_J,	  ld_J_BYTE,   rlca,	 ex_af_af_,   add_hl_SS, ld_a_vbc,    dec_SS,	  V_J,	       V_J,	  ld_J_BYTE, rrca,
 /* 1 */ djnz_OFFSET, ld_SS_WORD, ld_vde_a,    inc_SS,	   V_J,		V_J,	  ld_J_BYTE,   rla,	 jr_OFFSET,   add_hl_SS, ld_a_vde,    dec_SS,	  V_J,	       V_J,	  ld_J_BYTE, rra,
@@ -2078,7 +2080,7 @@ static Insn const insn_table[256] = {
 /* E */ ret_Z,	     pop_TT,	 jp_Z_WORD,   ex_vsp_hl,   call_Z_WORD, push_TT,  U_a_BYTE,    rst_N,	 ret_Z,	      jp_hl,	 jp_Z_WORD,   ex_de_hl,	  call_Z_WORD, ed_prefix, U_a_BYTE,  rst_N,
 /* F */ ret_Z,	     pop_TT,	 jp_Z_WORD,   di,	   call_Z_WORD, push_TT,  U_a_BYTE,    rst_N,	 ret_Z,	      ld_sp_hl,	 jp_Z_WORD,   ei,	  call_Z_WORD, fd_prefix, U_a_BYTE,  rst_N};
 
-static Insn const cb_insn_table[256] = {
+static Insn const NOFLASH_CONST(cb_insn_table)[256] = {
 /*	0	 1	  2	   3	    4	     5	      6		 7	  8	   9	    A	     B	      C	       D	E	   F */
 /* 0 */ G_K,	 G_K,	  G_K,	   G_K,	    G_K,     G_K,     G_vhl,	 G_K,	  G_K,	   G_K,	    G_K,     G_K,     G_K,     G_K,	G_vhl,	   G_K,
 /* 1 */ G_K,	 G_K,	  G_K,	   G_K,	    G_K,     G_K,     G_vhl,	 G_K,	  G_K,	   G_K,	    G_K,     G_K,     G_K,     G_K,	G_vhl,	   G_K,
@@ -2097,7 +2099,7 @@ static Insn const cb_insn_table[256] = {
 /* E */ M_N_K,	 M_N_K,	  M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_vhl,	 M_N_K,	  M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_K,	M_N_vhl,   M_N_K,
 /* F */ M_N_K,	 M_N_K,	  M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_vhl,	 M_N_K,	  M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_K,   M_N_K,	M_N_vhl,   M_N_K};
 
-static Insn const ed_insn_table[256] = {
+static Insn const NOFLASH_CONST(ed_insn_table)[256] = {
 /*	0	    1		2	    3		 4	     5		 6	     7		 8	     9		 A	     B		  C	      D		  E	      F */
 /* 0 */ ed_illegal, ed_illegal, ed_illegal, ed_illegal,	 ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal,  ed_illegal, ed_illegal, ed_illegal, ed_illegal,
 /* 1 */ ed_illegal, ed_illegal, ed_illegal, ed_illegal,	 ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal,  ed_illegal, ed_illegal, ed_illegal, ed_illegal,
@@ -2116,7 +2118,7 @@ static Insn const ed_insn_table[256] = {
 /* E */ ed_illegal, ed_illegal, ed_illegal, ed_illegal,	 ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal,  ed_illegal, ed_illegal, ed_illegal, ed_illegal,
 /* F */ ed_illegal, ed_illegal, ed_illegal, ed_illegal,	 ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal, ed_illegal,  ed_illegal, ed_illegal, ed_illegal, ed_illegal};
 
-static Insn const xy_insn_table[256] = {
+static Insn const NOFLASH_CONST(xy_insn_table)[256] = {
 /*	0		 1		  2		   3		    4		     5		      6			  7		   8	       9	   A		B	      C		  D	      E		       F */
 /* 0 */ nop_nop,	 xy_illegal,	  xy_illegal,	   xy_illegal,	    V_O,	     V_O,	      ld_O_BYTE,	  xy_illegal,	   xy_illegal, add_XY_WW,  xy_illegal,	xy_illegal,   V_O,	  V_O,	      ld_O_BYTE,       xy_illegal,
 /* 1 */ xy_illegal,	 xy_illegal,	  xy_illegal,	   xy_illegal,	    V_O,	     V_O,	      ld_O_BYTE,	  xy_illegal,	   xy_illegal, add_XY_WW,  xy_illegal,	xy_illegal,   V_O,	  V_O,	      ld_O_BYTE,       xy_illegal,
@@ -2135,7 +2137,7 @@ static Insn const xy_insn_table[256] = {
 /* E */ xy_illegal,	 pop_XY,	  xy_illegal,	   ex_vsp_XY,	    xy_illegal,	     push_XY,	      xy_illegal,	  xy_illegal,	   xy_illegal, jp_XY,	   xy_illegal,	xy_illegal,   xy_illegal, xy_illegal, xy_illegal,      xy_illegal,
 /* F */ xy_illegal,	 xy_illegal,	  xy_illegal,	   xy_illegal,	    xy_illegal,	     xy_illegal,      xy_illegal,	  xy_illegal,	   xy_illegal, ld_sp_XY,   xy_illegal,	xy_illegal,   xy_illegal, xy_xy,      xy_illegal,      xy_illegal};
 
-static Insn const xy_cb_insn_table[256] = {
+static Insn const NOFLASH_CONST(xy_cb_insn_table)[256] = {
 /*	0		  1		    2		      3			4		  5		    6		      7			8		  9		    A		      B			C		  D		    E		      F */
 /* 0 */ G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET_K,   G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET,     G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET_K,   G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET,     G_vXYpOFFSET_K,
 /* 1 */ G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET_K,   G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET,     G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET_K,   G_vXYpOFFSET_K,	G_vXYpOFFSET_K,	  G_vXYpOFFSET_K,   G_vXYpOFFSET,     G_vXYpOFFSET_K,
@@ -2409,7 +2411,7 @@ Z80_API void z80_nmi(Z80 *self)
 #endif
 
 
-Z80_API zusize z80_run(Z80 *self, zusize cycles)
+Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 	{
 	ZInt16 *xy;
 	zuint8 ird;
