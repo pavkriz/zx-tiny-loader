@@ -76,6 +76,9 @@ void FASTCODE NOFLASH(EmuInitializeRealZ80)()
 
 void FASTCODE NOFLASH(DumpSplitBrain)()
 {
+	flight_recorder_dump();
+	printf("Interrupt mode: IM%d\n", machine.cpu.im);
+	printf("HALT state: %d\n", machine.cpu.halt_line);
 	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
 	printf("SP: 0x%04X\n", machine.cpu.sp.uint16_value);
 	printf("A: 0x%02X\n", machine.cpu.af.uint16_value >> 8);
@@ -85,7 +88,6 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 	printf("HL: 0x%04X\n", machine.cpu.hl.uint16_value);
 	printf("R: 0x%02X\n", (machine.cpu.r & 0b01111111) | (machine.cpu.r7 & 0b10000000));
 
-	flight_recorder_dump();
 	/*
 	printf("Processing M1 opcode: 0x%02X\n", z80cpu.processing_m1_opcode);
 	printf("Previous M1 opcode: 0x%02X\n", z80cpu.previous_m1_opcode);
@@ -118,7 +120,6 @@ Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self
 	uint16_t real_val;
 	uint8_t val;
 
-/*
 	if ((addr < ZX_ROM_SIZE) && snapshot_is_loading()) {
 		// read from emulated ROM
 		if (addr == ROM_ADDR_COMMAND_BYTE_BUFFER) {
@@ -135,10 +136,11 @@ Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self
 			enable_zx_rom();
 			snapshot_loading_finished();			
 		}
-		*/
+	/*
 	if (addr < ZX_ROM_SIZE) {
 		val = self->memory[addr];
 		real_val = yield_mem_or_sniff_iorq(val);
+		*/
 	} else {
 		// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
 		// TODO check also unexpected memory write here indicating CALL (PUSH PC) due to entering NMI ISR
@@ -172,11 +174,37 @@ zuint16 FASTCODE NOFLASH(machine_cpu_read_or_detect_interrupt_ack)(Machine *self
 	return res.real_val;
 }
 
+// read memory or detect interrupt acknowledge cycle while doing NOP during HALTed state
+zuint8 FASTCODE NOFLASH(machine_halt_nop)(Machine *self, zuint16 addr)
+{
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		// this is IRQ acknowledge
+		flight_recorder_log_irq(self->cpu.pc.uint16_value);
+		// notify the calling code by setting a flag in the CPU state
+		self->cpu.request = Z80_REQUEST_INT;
+	} else {
+		flight_recorder_log_halt_nop(addr);
+		if (res.real_val != res.val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
+			DumpSplitBrain();
+		}
+	}
+	return res.real_val;
+}
+
 // read memory
 zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 {
 	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		/*
+		This is now handled via machine_halt_nop
+		if (self->cpu.halt_line) {
+			self->cpu.request = Z80_REQUEST_INT;
+			return 0;
+		}
+		*/
 		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
 		DumpSplitBrain();
 	} else {
@@ -265,9 +293,9 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 	// initialize Z80
 	machine.cpu.context      = &machine;
 	machine.cpu.fetch_opcode_or_detect_interrupt = (Z80ReadOrInterrupt)machine_cpu_read_or_detect_interrupt_ack;
+	machine.cpu.nop          = (Z80Read )machine_halt_nop;
 	machine.cpu.fetch_opcode =
 	machine.cpu.fetch        =
-	machine.cpu.nop          =
 	machine.cpu.read         = (Z80Read )machine_cpu_read;
 	machine.cpu.write        = (Z80Write)machine_cpu_write;
 	machine.cpu.in           = (Z80Read )machine_cpu_in;
@@ -288,10 +316,11 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 	for (int i = 0; i < sizeof(testrom_rom); i++) {
 		//Memory[i] = didaktik_gama_1989_rom[i];
 		//Memory[i] = testrom[i];
-		machine.memory[i] = testrom_rom[i];
+		//machine.memory[i] = testrom_rom[i];
+		machine.memory[i] = bios_rom[i];
 	}
 
-	//snapshot_init(machine.memory); // initialize snapshot loading
+	snapshot_init(machine.memory); // initialize snapshot loading
 
 	z80_power(&machine.cpu, Z_FALSE);
 
@@ -310,11 +339,11 @@ void FASTCODE NOFLASH(shadow_emulator)() {
     gpio_put(PIN_NUMBER_RESET, 1);
 
 
-	z80_run(&machine.cpu, 50000);
+	z80_run(&machine.cpu, 50000000);
+	flight_recorder_dump();
 	printf("Emulation finished\n");
 	printf("Interrupt mode: IM%d\n", machine.cpu.im);
 	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
-	flight_recorder_dump();
 	while (1) {
 		// wait here
 	}
