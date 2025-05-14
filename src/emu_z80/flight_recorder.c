@@ -13,29 +13,33 @@ void flight_recorder_dump(void) {
         }
         switch (rec->operation) {
             case FR_MEM_WR:
-                printf("MEM WR:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("MEM WR:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_MEM_RD:
-                printf("MEM RD:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("MEM RD:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_IO_WR:
-                printf("IO WR:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("IO WR:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_IO_RD:
-                printf("IO RD:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("IO RD:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_FETCH:  
-                printf("FETCH:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("FETCH:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_FETCH_1:  
-                printf("FETCH1:\t0x%04X = 0x%02X\n", rec->addr, rec->data);
+                printf("FETCH1:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_IRQ:
-                printf("IRQ:\t0x%04X (was PC pushed to SP when IRQ acknowloedged)\n", rec->addr);
+                printf("IRQ:\t0x%04X (was PC pushed to SP when IRQ acknowloedged)", rec->addr);
+                break;
+            case FR_HALT_NOP:
+                printf("HALT NOP:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             default:
-                printf("UNKNOWN OPERATION: %d\n", rec->operation);
+                printf("UNKNOWN OPERATION: %d", rec->operation);
                 break;
         }
+        printf("\tws=%d\twe=%d\n", rec->waited_bus_start, rec->waited_bus_end);
     }
 }

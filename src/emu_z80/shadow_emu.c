@@ -1,5 +1,3 @@
-#if USE_EMU	
-
 #include "shadow_emu.h"
 #include "../global.h"
 #include "didaktik_gama_1989_rom.h"
@@ -13,6 +11,7 @@
 #include "flight_recorder.h"
 #include <Z/constants/pointer.h>
 #include <Z/types/integral.h>
+#include "emu_divide.h"
 
 #include <Z80.h>
 
@@ -34,49 +33,10 @@ typedef struct {
 
 bool next_mem_wr_is_push_f = false;
 
-void FASTCODE NOFLASH(EmuInitializeRealZ80)()
-{
-	gpio_put(PIN_NUMBER_ROMCS, 1); // keep /ROMCS high to disable the internal ROM
-	gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT);
-
-	yield_di();
-	yield_ld_a_n(0); // will be I
-	yield_ld_i_a();
-	// will be R, we make it the value that increments due to following instructions make it wrap to 0 after call 0x0000 (ie. "reset")
-	// 22 refreshcycles follows, only 7 bits are used for R
-	yield_ld_a_n((0-22) & 0b01111111); 
-	yield_ld_r_a();
-	yield_ld_sp_nn(0xffff); // SP
-	yield_exx();
-	yield_exx_af_af2();
-	yield_hl_nn(0xFFFF); // will be AF'
-	yield_push_hl();
-	yield_pop_af();
-	sniff_mem_rd(); // skip two reads from memory caused by POP AF
-	sniff_mem_rd();
-	yield_ld_bc_nn(0x0000); // will be BC'
-	yield_ld_de_nn(0x0000); // will be DE'
-	yield_ld_hl_nn(0x0000); // will be HL'
-	yield_exx();
-	yield_exx_af_af2();
-	yield_hl_nn(0xFFFF); // will be AF
-	yield_push_hl();
-	yield_pop_af();
-	sniff_mem_rd(); // skip two reads from memory caused by POP AF
-	sniff_mem_rd();
-	yield_ld_bc_nn(0x0000); // BC
-	yield_ld_de_nn(0x0000); // DE
-	yield_ld_hl_nn(0x0000); // HL
-	yield_ld_ix_nn(0x0000); // IX
-	yield_ld_iy_nn(0x0000); // IY
-	yield_jp_nn(0x0000); // will start CPU again with registers defined and ROM will be enabled (see next function call)
-
-	//gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_IN);  // enable ROM
-}
-
 void FASTCODE NOFLASH(DumpSplitBrain)()
 {
 	flight_recorder_dump();
+	printf("Waited bus start: %d\n", zx_waited_bus_start);
 	printf("Interrupt mode: IM%d\n", machine.cpu.im);
 	printf("HALT state: %d\n", machine.cpu.halt_line);
 	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
@@ -115,10 +75,30 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 }
 
 
-Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self, zuint16 addr)
+static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(Machine *self, zuint16 addr, bool is_m1)
 {
 	uint16_t real_val;
 	uint8_t val;
+
+	// IRQ acknowledge cycle detection
+	uint32_t control_pins = zx_bus_event_wait();
+	if (control_pins & PIN_BIT_IORQ) {
+		// IRQ acknowledge cycle happened in real HW instead of memory read, addr is irrelevant here
+		real_val = zx_bus_get_data();
+		val = real_val;
+		real_val = (Z80_REQUEST_INT << 8) | real_val; // add IRQ flag
+		return (Generic_mem_read_result) { .val = val, .real_val = real_val };
+	} else if (control_pins & PIN_BIT_WR) {
+		printf("Emulation split brain - Unexpected WR cycle at addr %04X\n", addr);
+		DumpSplitBrain();
+	}
+
+	// normal memory read detected at addr
+
+	// early divide mapping
+	// if ((addr & 0xff00) == 0x3d00) {
+    // 	divide_set_automap(true);
+    // }
 
 	if ((addr < ZX_ROM_SIZE) && snapshot_is_loading()) {
 		// read from emulated ROM
@@ -130,12 +110,15 @@ Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self
 		} else {
 			val = self->memory[addr];
 		}
-		real_val = yield_mem_or_sniff_iorq(val);
+		zx_bus_yield_data(val);
+		real_val = val;
 		if (addr == snapshot_get_rom_page_out_address()) {
 			// this is the address where the "BIOS" ROM (that loads a snapshot) is mapped out and original ROM is mapped in
-			enable_zx_rom();
-			snapshot_loading_finished();			
+			// we do not have to map ZX ROM in since we disable (map out) it only during zx_bus_yield_data operation
+			snapshot_loading_finished();
 		}
+	//} else if ((addr < ZX_ROM_SIZE) && divide_is_mapped()) {
+		// TODO zx_bus_yield_data based on current divide mapping
 	/*
 	if (addr < ZX_ROM_SIZE) {
 		val = self->memory[addr];
@@ -144,7 +127,7 @@ Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self
 	} else {
 		// here we may either read from our emulated memory (if we have ROM copy as well) or read from DATA bus
 		// TODO check also unexpected memory write here indicating CALL (PUSH PC) due to entering NMI ISR
-		real_val = sniff_mem_rd_or_iorq();
+		real_val = zx_bus_get_data();
 		if (addr >= ZX_ROM_SIZE) {
 			// RAM, we shadow-emulate it
 			val = self->memory[addr];
@@ -154,13 +137,20 @@ Generic_mem_read_result FASTCODE NOFLASH(machine_cpu_read_generic)(Machine *self
 		}
 	}
 
+	if ((addr & 0xfff8) == 0x1ff8) {
+        divide_set_automap(false);
+    } else if((addr == 0x0000) || (addr == 0x0008) || (addr == 0x0038)
+      || (addr == 0x0066) || (addr == 0x04c6) || (addr == 0x0562)) {
+        divide_set_automap(true);
+    }
+
 	return (Generic_mem_read_result) { .val = val, .real_val = real_val };
 }
 
-// read memory or detect interrupt acknowledge cycle
-zuint16 FASTCODE NOFLASH(machine_cpu_read_or_detect_interrupt_ack)(Machine *self, zuint16 addr)
+// read memory during first (or the only if it's not a prefixed opcode) m1 opcode fetch or detect interrupt acknowledge cycle
+zuint16 FASTCODE NOFLASH(machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack)(Machine *self, zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, true);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		// this is IRQ acknowledge, the calling code will detect the flag in the higher byte
 		flight_recorder_log_irq(self->cpu.pc.uint16_value);
@@ -177,7 +167,7 @@ zuint16 FASTCODE NOFLASH(machine_cpu_read_or_detect_interrupt_ack)(Machine *self
 // read memory or detect interrupt acknowledge cycle while doing NOP during HALTed state
 zuint8 FASTCODE NOFLASH(machine_halt_nop)(Machine *self, zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, false);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		// this is IRQ acknowledge
 		flight_recorder_log_irq(self->cpu.pc.uint16_value);
@@ -193,10 +183,27 @@ zuint8 FASTCODE NOFLASH(machine_halt_nop)(Machine *self, zuint16 addr)
 	return res.real_val;
 }
 
+// read memory during a second succesive (in case of a prefixed opcode) m1 opcode fetch
+zuint16 FASTCODE NOFLASH(machine_cpu_fetch_2nd_opcode)(Machine *self, zuint16 addr)
+{
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, true);
+	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
+		DumpSplitBrain();
+	} else {
+		flight_recorder_log_op(FR_FETCH_1, addr, res.val);
+		if (res.real_val != res.val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
+			DumpSplitBrain();
+		}
+	}
+	return res.real_val;
+}
+
 // read memory
 zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr);
+	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, false);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		/*
 		This is now handled via machine_halt_nop
@@ -222,33 +229,9 @@ zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 void FASTCODE NOFLASH(machine_cpu_write)(Machine *self, zuint16 addr, zuint8 data)
 {
 	uint8_t real_val = sniff_mem_wr();
-	bool ignoreDifference = false;
-	/*
-	if (z80cpu.processing_m1_opcode == 0xF5) {
-		// doing PUSH AF
-		if (next_mem_wr_is_push_f) {
-			// this is the second byte write of the PUSH AF instruction, ie. the F register
-			// compare F glags regardless of bits 3 and 5
-			if ((data & 0b11010111) != (real_val & 0b11010111)) {
-				printf("Emulation split brain FLAGS differ - write to memory: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
-				DumpSplitBrain();
-			} else {
-				// stored flags look good, but emulated flags may differ in bits 3 and 5 to real ones
-				// update emulated F register to match the real one in order no to get splitbrain when doing POP AF (or POP HL or whartever from location where AF is stored) later
-				z80cpu.f = real_val;
-				ignoreDifference = true;
-			}
-			next_mem_wr_is_push_f = false;
-		} else {
-			// this is the first byte write of the PUSH AF instruction, ie. the A register
-			next_mem_wr_is_push_f = true;
-		}
-	}
-	*/
-
 	flight_recorder_log_mem_wr(addr, data);
 
-	if ((data != real_val) && !ignoreDifference) {
+	if (data != real_val) {
 		printf("Emulation split brain - write to memory: %04X <= %02X (real value: %02X)\n", addr, data, real_val);
 		DumpSplitBrain();
 	}
@@ -292,9 +275,9 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 
 	// initialize Z80
 	machine.cpu.context      = &machine;
-	machine.cpu.fetch_opcode_or_detect_interrupt = (Z80ReadOrInterrupt)machine_cpu_read_or_detect_interrupt_ack;
+	machine.cpu.fetch_opcode_or_detect_interrupt = (Z80ReadOrInterrupt)machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack;
 	machine.cpu.nop          = (Z80Read )machine_halt_nop;
-	machine.cpu.fetch_opcode =
+	machine.cpu.fetch_opcode = (Z80Read )machine_cpu_fetch_2nd_opcode;
 	machine.cpu.fetch        =
 	machine.cpu.read         = (Z80Read )machine_cpu_read;
 	machine.cpu.write        = (Z80Write)machine_cpu_write;
@@ -324,7 +307,6 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 
 	z80_power(&machine.cpu, Z_FALSE);
 
-	disable_zx_rom(); // disable internal ROM
     // except /ROMCS and /RESET which will be output
     //gpio_init(PIN_NUMBER_ROMCS);
     // gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT);
@@ -348,5 +330,3 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 		// wait here
 	}
 }
-
-#endif // USE_EMU

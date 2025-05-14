@@ -9,123 +9,81 @@
 // ROM 0x0038 addr = IM1 IRQ ISR
 // ROM 0x0066 addr = NMI ISR
 
-// this is where we make Z80 thinks he jumps from time to time to not increment PC too much 
-// to not reach RAM address region (but actually we do not take ADDRESS bus into account at all when yilding instructions)
-#define SAVE_ROM_ADDR_FOR_LOOPS 0x0100  
-// yield operations wait for CPU for memory or IO read and put the data to DATA bus (regardless of actual ADDRESS bus state)
-static INLINE void yield_mem(uint32_t n) {
-    gpio_put_masked(PIN_BITS_DATA, n);          /* put data to DATA bus */ \
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */ \
-    gpio_set_dir_out_masked(PIN_BITS_DATA);     /* set DATA bus to output */ \
-    while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
-    gpio_set_dir_in_masked(PIN_BITS_DATA);      /* set DATA bus to input (nout output) */
-}
-#define yield_m1(n) yield_mem(n); 
-#define yield_ld_a_n(n) { yield_m1(0x3E); yield_mem(n); }
-#define yield_out_n_a(n) { yield_m1(0xD3); yield_mem(n); }
-#define yield_jp_nn(nn) { yield_m1(0xC3); yield_mem(nn); yield_mem(nn >> 8); }
-#define yield_ld_hl_nn(nn) { yield_m1(0x21); yield_mem(nn); yield_mem(nn >> 8); }
-#define yield_ld_ref_hl_n(n) { yield_m1(0x36); yield_mem(n); }
-#define yield_di() yield_m1(0xF3);
-#define yield_nop() yield_m1(0x00);
-#define yield_dummy_jump() {yield_jp_nn(SAVE_ROM_ADDR_FOR_LOOPS); emu_z80_pc = SAVE_ROM_ADDR_FOR_LOOPS;}
-#define yield_jump(label) {yield_dummy_jump(); goto label;}
-#define yield_call(nn) {yield_m1(0xCD); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_push_af() {yield_m1(0xF5);}
-#define yield_push_bc() {yield_m1(0xC5);}
-#define yield_push_de() {yield_m1(0xD5);}
-#define yield_push_hl() {yield_m1(0xE5);}
-#define yield_pop_af() {yield_m1(0xF1);}
-#define yield_exx() {yield_m1(0xD9);}
-#define yield_exx_af_af2() {yield_m1(0x08);}
-#define yield_ld_nn_sp(nn) {yield_m1(0xED); yield_mem(0x73); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_sp_nn(nn) {yield_m1(0x31); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_hl_nn(nn) {yield_m1(0x21); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_bc_nn(nn) {yield_m1(0x01); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_de_nn(nn) {yield_m1(0x11); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_ix_nn(nn) {yield_m1(0xDD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_iy_nn(nn) {yield_m1(0xFD); yield_mem(0x21); yield_mem(nn); yield_mem(nn >> 8);}
-#define yield_ld_i_a() { yield_m1(0xED); yield_mem(0x47); }
-#define yield_ld_r_a() { yield_m1(0xED); yield_mem(0x4F); }
-#define yield_ld_a_r() { yield_m1(0xED); yield_mem(0x5F); }
+static uint16_t zx_waited_bus_start = 0;
+static uint16_t zx_waited_bus_end = 0;
 
-#define wait_z80_cycles(n) busy_wait_at_least_cycles(n*300000000/3500000); // wait for 1 Z80 cycle (assuming 3.5MHz Z80 clock and 300MHz Pico clock)
-
-#define disable_zx_rom() { gpio_put(PIN_NUMBER_ROMCS, 1); gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT); } // disable internal ZX ROM
-#define enable_zx_rom() { gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_IN); } // enable internal ZX ROM
+#define zx_rom_disable() { gpio_put(PIN_NUMBER_ROMCS, 1); gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_OUT); } // disable internal ZX ROM
+#define zx_rom_enable() { gpio_set_dir(PIN_NUMBER_ROMCS, GPIO_IN); } // enable internal ZX ROM
 
 static INLINE FASTCODE uint8_t sniff_mem_wr() {
-    while (gpio_get(PIN_NUMBER_WR) != 0) { }    /* wait for WR to go low (indicating a write operation) */
+    zx_waited_bus_start = 0;
+    while (gpio_get(PIN_NUMBER_WR) != 0) { zx_waited_bus_start++; }    /* wait for WR to go low (indicating a write operation) */
     uint8_t val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    while (gpio_get(PIN_NUMBER_WR) == 0) { }    /* wait for WR to go high (indicating the end of write operation) */
+    zx_waited_bus_end = 0;
+    while (gpio_get(PIN_NUMBER_WR) == 0) { zx_waited_bus_end++; }    /* wait for WR to go high (indicating the end of write operation) */
     return val;
 }
 
 static INLINE FASTCODE int16_t sniff_mem_rd() {
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
+    zx_waited_bus_start = 0;
+    while (gpio_get(PIN_NUMBER_RD) != 0) { zx_waited_bus_start++; }    /* wait for RD to go low (indicating a read operation) */
     uint8_t val = 0;
     uint8_t val_prev = 0;
+    zx_waited_bus_end = 0;
     do {
         val_prev = val;
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+        zx_waited_bus_end++;
     } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
     return val_prev;
 }
 
 
-/**
- * Sniff memory read or IRQ acknowledge operation.
- * Return byte value from DATA bus for read operation or DATA bus + flag in upper byte for IRQ acknowledge.
- */
-static INLINE FASTCODE uint16_t sniff_mem_rd_or_iorq() {
+static INLINE FASTCODE uint32_t zx_bus_event_wait() {
     uint32_t control_pins = 0;
+    zx_waited_bus_start = 0;
     // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
-    while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
-    bool is_iorq = (control_pins & PIN_BIT_IORQ) == 0;
-    //wait_z80_cycles(1); // wait for RAM to respond
-    // instead of waiting, read the DATA bus until RD goes high
-    uint32_t val = 0;
-    uint32_t val_prev = 0;
+    while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_WR | PIN_BIT_RD | PIN_BIT_IORQ)) { zx_waited_bus_start++; }
+    // invert the control pins to return more intuitive value
+    control_pins = ~control_pins;
+    return control_pins;
+}
+
+static INLINE FASTCODE uint8_t zx_bus_get_data() {
+    uint8_t val = 0;
+    uint8_t val_prev = 0;
+    zx_waited_bus_end = 0;
     do {
         val_prev = val;
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-    // wait for both RD anf IORQ to go high (indicating the end of the operation)
-    } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
-    return is_iorq ? (val_prev | (Z80_REQUEST_INT << 8)) : val_prev; // return flag in higher byte for IORQ
+        zx_waited_bus_end++;
+    } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
+    return val_prev;
 }
 
-static INLINE uint16_t yield_mem_or_sniff_iorq(uint8_t n) {
-    gpio_put_masked(PIN_BITS_DATA, n);          /* prepare data to DATA bus output buffer */
-    uint32_t control_pins = 0;
-    // wait for either RD or IORQ to go low (indicating currently a memory read operation or IRQ acknowledge)
-    while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  == (PIN_BIT_RD | PIN_BIT_IORQ)) {  }
-    bool is_iorq = (control_pins & PIN_BIT_IORQ) == 0;
-    if (is_iorq) {
-        uint32_t val = 0;
-        uint32_t val_prev = 0;
-        do {
-            val_prev = val;
-            val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
-        // wait for both RD anf IORQ to go high (indicating the end of the operation)
-        } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
-        return (val_prev | (Z80_REQUEST_INT << 8)); // return flag in higher byte for IORQ
-    } else {
-        gpio_set_dir_out_masked(PIN_BITS_DATA);     /* set DATA bus to output mode to provide emulated data to real Z80 */
-        while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */ \
-        gpio_set_dir_in_masked(PIN_BITS_DATA);      /* set DATA bus to input (nout output) */
-        return n;
-    }
+static INLINE FASTCODE void zx_bus_yield_data(uint8_t data) {
+    zx_rom_disable(); // make sure the internal ROM is disabled
+    gpio_put_masked(PIN_BITS_DATA, data);          /* prepare data to DATA bus output buffer */
+    gpio_set_dir_out_masked(PIN_BITS_DATA);     /* set DATA bus to output mode to provide emulated data to real Z80 */
+    zx_waited_bus_end = 0;
+    while (gpio_get(PIN_NUMBER_RD) == 0) { zx_waited_bus_end++; }    /* wait for RD to go high (indicating the end of read operation) */
+    gpio_set_dir_in_masked(PIN_BITS_DATA);      /* set DATA bus to input mode to leave DATA bus in high impedance state */
+    zx_rom_enable(); // enable the internal ROM again
 }
+
 
 static INLINE FASTCODE uint8_t sniff_io_rd() {
-    while (gpio_get(PIN_NUMBER_RD) != 0) { }    /* wait for RD to go low (indicating a read operation) */
+    zx_waited_bus_start = 0;
+    while (gpio_get(PIN_NUMBER_RD) != 0) { zx_waited_bus_start++; }    /* wait for RD to go low (indicating a read operation) */
     //wait_z80_cycles(2.2); // wait for IO to respond, there is extra WAIT state in IO read
     // instead of waiting, read the DATA bus until RD goes high
     uint8_t val = 0;
     uint8_t val_prev = 0;
+    zx_waited_bus_end = 0;
     do {
         val_prev = val;
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+        zx_waited_bus_end++;
     } while (gpio_get(PIN_NUMBER_RD) == 0);    /* wait for RD to go high (indicating the end of read operation) */
     //while (gpio_get(PIN_NUMBER_RD) == 0) { }    /* wait for RD to go high (indicating the end of read operation) */
     return val_prev;
@@ -134,15 +92,18 @@ static INLINE FASTCODE uint8_t sniff_io_rd() {
 static INLINE FASTCODE uint8_t sniff_io_wr() {
      uint32_t control_pins = 0;
     // wait for both WR and IORQ to go low
-    while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_IORQ)))  != 0) {  }
+    zx_waited_bus_start = 0;
+    while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_IORQ)))  != 0) { zx_waited_bus_start++; }
     //wait_z80_cycles(1); // wait for RAM to respond
     // instead of waiting, read the DATA bus until RD goes high
     uint32_t val = 0;
     uint32_t val_prev = 0;
+    zx_waited_bus_end = 0;
     do {
         val_prev = val;
         val = gpio_get_all() & PIN_BITS_DATA; // read data from DATA bus
+        zx_waited_bus_end++;
     // wait for both RD anf IORQ to go high (indicating the end of the operation)
-    } while ((control_pins = (gpio_get_all() & (PIN_BIT_RD | PIN_BIT_IORQ)))  != (PIN_BIT_RD | PIN_BIT_IORQ));
+    } while ((control_pins = (gpio_get_all() & (PIN_BIT_WR | PIN_BIT_IORQ)))  != (PIN_BIT_WR | PIN_BIT_IORQ));
     return val_prev;
 }
