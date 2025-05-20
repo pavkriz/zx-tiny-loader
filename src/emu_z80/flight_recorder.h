@@ -8,8 +8,9 @@ typedef enum {
     FR_MEM_RD,  // Memory read
     FR_IO_WR,   // I/O write
     FR_IO_RD,   // I/O read
-    FR_FETCH,   // Instruction fetch
     FR_FETCH_1, // Instruction fetch, fetching 1st byte of the opcode
+    FR_FETCH_2, // Instruction fetch, fetching 2st byte of a prefixed opcode
+    FR_FETCH_PARAMS, // Instruction fetch, fetching params of the instruction (eg. immediate value or address)
     FR_HALT_NOP, // NOP instruction (actually a memory read at PC) during HALTed state (not repeated in the log)
     FR_IRQ,     // IRQ entry
 } fr_operation_t;

@@ -102,7 +102,7 @@
 #define Z80_NF   2 /**< @brief Bitmask of the Z80 N flag.   */
 #define Z80_CF   1 /**< @brief Bitmask of the Z80 C flag.   */
 
-typedef struct Z80 Z80;
+typedef struct Z80_s Z80_t;
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * perform a read operation.
@@ -111,16 +111,8 @@ typedef struct Z80 Z80;
   * @param address The memory address or I/O port to read from.
   * @return The byte read. */
 
-typedef zuint8 (* Z80Read)(void *context, zuint16 address);
+typedef zuint8 (* Z80Read)(zuint16 address);
 
-/** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
-  * perform a read operation or detect an interrupt event.
-  *
-  * @param context The <tt>@ref Z80::context</tt> of the calling object.
-  * @param address The memory address or I/O port to read from.
-  * @return The byte read or interrupt vector + interrupt flags. */
-
-typedef zuint16 (* Z80ReadOrInterrupt)(void *context, zuint16 address);
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * perform a write operation.
@@ -129,7 +121,7 @@ typedef zuint16 (* Z80ReadOrInterrupt)(void *context, zuint16 address);
   * @param address The memory address or I/O port to write to.
   * @param value The byte to write. */
 
-typedef void (* Z80Write)(void *context, zuint16 address, zuint8 value);
+typedef void (* Z80Write)(zuint16 address, zuint8 value);
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * notify a signal change on the HALT line.
@@ -137,14 +129,14 @@ typedef void (* Z80Write)(void *context, zuint16 address, zuint8 value);
   * @param context The <tt>@ref Z80::context</tt> of the calling object.
   * @param signal A code specifying the type of signal change. */
 
-typedef void (* Z80Halt)(void *context, zuint8 signal);
+typedef void (* Z80Halt)(zuint8 signal);
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * notify an event.
   *
   * @param context The <tt>@ref Z80::context</tt> of the calling object. */
 
-typedef void (* Z80Notify)(void *context);
+typedef void (* Z80Notify)();
 
 /** @brief Defines a pointer to a <tt>@ref Z80</tt> callback function invoked to
   * delegate the emulation of an illegal instruction.
@@ -153,7 +145,7 @@ typedef void (* Z80Notify)(void *context);
   * @param opcode The illegal opcode.
   * @return The number of clock cycles consumed by the instruction. */
 
-typedef zuint8 (* Z80Illegal)(Z80 *cpu, zuint8 opcode);
+typedef zuint8 (* Z80Illegal)(zuint8 opcode);
 
 /** @struct Z80 Z80.h
   *
@@ -168,7 +160,7 @@ typedef zuint8 (* Z80Illegal)(Z80 *cpu, zuint8 opcode);
   * an object of this type. Optional callbacks must be set to @c Z_NULL when not
   * in use. */
 
-struct Z80 {
+struct __attribute__((aligned(4))) Z80_s {
 
 	/** @brief Number of clock cycles already executed. */
 
@@ -177,58 +169,6 @@ struct Z80 {
 	/** @brief Maximum number of clock cycles to be executed. */
 
 	zusize cycle_limit;
-
-	/** @brief Pointer to pass as the first argument to all callback
-	  * functions.
-	  *
-	  * This member is intended to hold a reference to the context to which
-	  * the object belongs. It is safe not to initialize it when this is not
-	  * necessary. */
-
-	void *context;
-
-	/** @brief Invoked to perform an opcode fetch or detect interrupt event (eg. IRQ acklowledge cycle) in read CPU.
-	  *
-	  * This callback indicates the beginning of an opcode fetch M-cycle.
-	  * The function must return the byte located at the memory address
-	  * specified by the second argument or the interrupt vector from data bus with flags
-	  * indicating the type of interrupt (eg. NMI, INT, etc) in higher byte returned.
-	  */
-	Z80ReadOrInterrupt fetch_opcode_or_detect_interrupt;
-
-	/** @brief Invoked to perform an opcode fetch.
-	  *
-	  * This callback indicates the beginning of an opcode fetch M-cycle.
-	  * The function must return the byte located at the memory address
-	  * specified by the second argument. */
-
-	Z80Read fetch_opcode;
-
-	/** @brief Invoked to perform a memory read on instruction data.
-	  *
-	  * This callback indicates the beginning of a memory read M-cycle
-	  * during which the CPU fetches one byte of instruction data (i.e., one
-	  * byte of the instruction that is neither a prefix nor an opcode). The
-	  * function must return the byte located at the memory address
-	  * specified by the second argument. */
-
-	Z80Read fetch;
-
-	/** @brief Invoked to perform a memory read.
-	  *
-	  * This callback indicates the beginning of a memory read M-cycle. The
-	  * function must return the byte located at the memory address
-	  * specified by the second argument. */
-
-	Z80Read read;
-
-	/** @brief Invoked to perform a memory write.
-	  *
-	  * This callback indicates the beginning of a memory write M-cycle. The
-	  * function must write the third argument into the memory location
-	  * specified by the second argument. */
-
-	Z80Write write;
 
 	/** @brief Invoked to perform an I/O port read.
 	  *
@@ -490,6 +430,9 @@ struct Z80 {
 
 	zuint8 halt_line;
 };
+
+#include "../../src/emu_z80/machine.h"
+
 
 /** @brief <tt>@ref Z80::options</tt> bitmask that enables emulation of the
   * <tt>out (c),255</tt> instruction, specific to the Zilog Z80 CMOS. */
@@ -788,18 +731,17 @@ Z_EXTERN_C_BEGIN
 
 /** @brief Sets the power state of a <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called.
   * @param state
   *   @c Z_TRUE  = power on;
   *   @c Z_FALSE = power off. */
 
-Z80_API void z80_power(Z80 *self, zbool state);
+Z80_API void z80_power(zbool state);
 
 /** @brief Performs an instantaneous normal RESET on a <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called. */
+  * */
 
-Z80_API void z80_instant_reset(Z80 *self);
+Z80_API void z80_instant_reset();
 
 /** @brief Sends a special RESET signal to a <tt>@ref Z80</tt>.
   *
@@ -807,41 +749,38 @@ Z80_API void z80_instant_reset(Z80 *self);
   * - http://www.primrosebank.net/computers/z80/z80_special_reset.htm
   * - US Patent 4486827
   *
-  * @param self Pointer to the object on which the function is called. */
+  *  */
 
-Z80_API void z80_special_reset(Z80 *self);
+Z80_API void z80_special_reset();
 
 /** @brief Sets the state of the INT line of a <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called.
   * @param state
   *   @c Z_TRUE  = set line low;
   *   @c Z_FALSE = set line high. */
 
-Z80_API void z80_int(Z80 *self, zbool state);
+Z80_API void z80_int(zbool state);
 
 /** @brief Triggers the NMI line of a <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called. */
+  *  */
 
-Z80_API void z80_nmi(Z80 *self);
+Z80_API void z80_nmi();
 
 /** @brief Runs a <tt>@ref Z80</tt> for a given number of clock @p cycles,
   * executing only instructions without responding to signals.
   *
-  * @param self Pointer to the object on which the function is called.
   * @param cycles Number of clock cycles to be emulated.
   * @return The actual number of clock cycles emulated. */
 
-Z80_API zusize z80_execute(Z80 *self, zusize cycles);
+Z80_API zusize z80_execute(zusize cycles);
 
 /** @brief Runs a <tt>@ref Z80</tt> for a given number of clock @p cycles.
   *
-  * @param self Pointer to the object on which the function is called.
   * @param cycles Number of clock cycles to be emulated.
   * @return The actual number of clock cycles emulated. */
 
-Z80_API zusize z80_run(Z80 *self, zusize cycles);
+Z80_API zusize z80_run(zusize cycles);
 
 
 /** @brief Ends the emulation loop of <tt>@ref z80_execute</tt> or
@@ -851,69 +790,65 @@ Z80_API zusize z80_run(Z80 *self, zusize cycles);
   * <tt>@ref Z80::cycle_limit</tt>, thus breaking the emulation loop after the
   * completion of the ongoing emulation step.
   *
-  * @param self Pointer to the object on which the function is called. */
+  * */
 
-static Z_ALWAYS_INLINE void z80_break(Z80 *self)
-	{self->cycle_limit = 0;}
+static Z_ALWAYS_INLINE void z80_break()
+	{z80machine.cpu.cycle_limit = 0;}
 
 
 /** @brief Gets the full value of the R register of a <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called.
   * @return The value of the R register. */
 
-static Z_ALWAYS_INLINE zuint8 z80_r(Z80 const *self)
-	{return (self->r & 127) | (self->r7 & 128);}
+static Z_ALWAYS_INLINE zuint8 z80_r()
+	{return (z80machine.cpu.r & 127) | (z80machine.cpu.r7 & 128);}
 
 
 /** @brief Obtains the refresh address of the M1 cycle being executed by a
   * <tt>@ref Z80</tt>.
   *
-  * @param self Pointer to the object on which the function is called.
   * @return The refresh address. */
 
-static Z_ALWAYS_INLINE zuint16 z80_refresh_address(Z80 const *self)
+static Z_ALWAYS_INLINE zuint16 z80_refresh_address()
 	{
 	return Z_CAST(zuint16)(
-		((zuint16)self->i << 8) |
-		((self->r - 1) & 127)   |
-		(self->r7 & 128));
+		((zuint16)z80machine.cpu.i << 8) |
+		((z80machine.cpu.r - 1) & 127)   |
+		(z80machine.cpu.r7 & 128));
 	}
 
 
 /** @brief Obtains the clock cycle, relative to the start of the instruction, at
   * which the I/O read M-cycle being executed by a <tt>@ref Z80</tt> begins.
   *
-  * @param self Pointer to the object on which the function is called.
   * @return The clock cycle at which the I/O read M-cycle begins. */
 
-static Z_ALWAYS_INLINE zuint8 z80_in_cycle(Z80 const *self)
+static Z_ALWAYS_INLINE zuint8 z80_in_cycle()
 	{
-	return Z_CAST(zuint8)(self->data.uint8_array[0] == 0xDB
+	return Z_CAST(zuint8)(z80machine.cpu.data.uint8_array[0] == 0xDB
 		? /* in a,(BYTE) : 4+3 */
 		7
 		: /* in J,(c) / in (c) : 4+4 */
 		8
 		+ /* ini / ind / inir / indr : 4+5 */
-		(self->data.uint8_array[1] >> 7));
+		(z80machine.cpu.data.uint8_array[1] >> 7));
 	}
 
 
 /** @brief Obtains the clock cycle, relative to the start of the instruction, at
   * which the I/O write M-cycle being executed by a <tt>@ref Z80</tt> begins.
   *
-  * @param self Pointer to the object on which the function is called.
   * @return The clock cycle at which the I/O write M-cycle begins. */
 
-static Z_ALWAYS_INLINE zuint8 z80_out_cycle(Z80 const *self)
+static Z_ALWAYS_INLINE zuint8 z80_out_cycle()
 	{
-	return Z_CAST(zuint8)(self->data.uint8_array[0] == 0xD3
+	return Z_CAST(zuint8)(z80machine.cpu.data.uint8_array[0] == 0xD3
 		? /* out (BYTE),a : 4+3 */
 		7
 		: /* out (c),J / out (c),0 : 4+4 */
 		8
 		+ /* outi / outd / otir / otdr : 4+5+3 */
-		((self->data.uint8_array[1] >> 7) << 2));
+		((z80machine.cpu.data.uint8_array[1] >> 7) << 2));
 	}
 
 

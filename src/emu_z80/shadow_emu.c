@@ -16,15 +16,6 @@
 #include <Z80.h>
 
 #define ZX_ROM_SIZE 0x4000
-#define Z80_MEMSIZE 0x10000
-
-typedef struct {
-        zusize  cycles;
-        zuint8  memory[Z80_MEMSIZE];
-        Z80     cpu;
-} Machine;
-
-Machine machine;
 
 typedef struct {
         uint8_t   val;
@@ -37,16 +28,16 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 {
 	flight_recorder_dump();
 	printf("Waited bus start: %d\n", zx_waited_bus_start);
-	printf("Interrupt mode: IM%d\n", machine.cpu.im);
-	printf("HALT state: %d\n", machine.cpu.halt_line);
-	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
-	printf("SP: 0x%04X\n", machine.cpu.sp.uint16_value);
-	printf("A: 0x%02X\n", machine.cpu.af.uint16_value >> 8);
-	printf("F: 0x%02X\n", machine.cpu.af.uint16_value & 0xFF);
-	printf("BC: 0x%04X\n", machine.cpu.bc.uint16_value);
-	printf("DE: 0x%04X\n", machine.cpu.de.uint16_value);
-	printf("HL: 0x%04X\n", machine.cpu.hl.uint16_value);
-	printf("R: 0x%02X\n", (machine.cpu.r & 0b01111111) | (machine.cpu.r7 & 0b10000000));
+	printf("Interrupt mode: IM%d\n", z80machine.cpu.im);
+	printf("HALT state: %d\n", z80machine.cpu.halt_line);
+	printf("PC: 0x%04X\n", z80machine.cpu.pc.uint16_value);
+	printf("SP: 0x%04X\n", z80machine.cpu.sp.uint16_value);
+	printf("A: 0x%02X\n", z80machine.cpu.af.uint16_value >> 8);
+	printf("F: 0x%02X\n", z80machine.cpu.af.uint16_value & 0xFF);
+	printf("BC: 0x%04X\n", z80machine.cpu.bc.uint16_value);
+	printf("DE: 0x%04X\n", z80machine.cpu.de.uint16_value);
+	printf("HL: 0x%04X\n", z80machine.cpu.hl.uint16_value);
+	printf("R: 0x%02X\n", (z80machine.cpu.r & 0b01111111) | (z80machine.cpu.r7 & 0b10000000));
 
 	/*
 	printf("Processing M1 opcode: 0x%02X\n", z80cpu.processing_m1_opcode);
@@ -75,7 +66,7 @@ void FASTCODE NOFLASH(DumpSplitBrain)()
 }
 
 
-static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(Machine *self, zuint16 addr, bool is_m1)
+static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(zuint16 addr, bool is_m1)
 {
 	uint16_t real_val;
 	uint8_t val;
@@ -108,7 +99,7 @@ static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(Machin
 			// This way we mimmic something like INIR instruction behaviour but from the memory instead of I/O port.
 			val = snapshot_get_next_byte();
 		} else {
-			val = self->memory[addr];
+			val = z80machine.memory[addr];
 		}
 		zx_bus_yield_data(val);
 		real_val = val;
@@ -130,7 +121,7 @@ static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(Machin
 		real_val = zx_bus_get_data();
 		if (addr >= ZX_ROM_SIZE) {
 			// RAM, we shadow-emulate it
-			val = self->memory[addr];
+			val = z80machine.memory[addr];
 		} else {
 			// ROM, we read from DATA bus (we may shadow emulate it in future, but now we don't do it yet)
 			val = real_val;
@@ -148,12 +139,12 @@ static Generic_mem_read_result INLINE FASTCODE (machine_cpu_read_generic)(Machin
 }
 
 // read memory during first (or the only if it's not a prefixed opcode) m1 opcode fetch or detect interrupt acknowledge cycle
-zuint16 FASTCODE NOFLASH(machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack)(Machine *self, zuint16 addr)
+zuint16 FASTCODE NOFLASH(machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack)(zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, true);
+	Generic_mem_read_result res = machine_cpu_read_generic(addr, true);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		// this is IRQ acknowledge, the calling code will detect the flag in the higher byte
-		flight_recorder_log_irq(self->cpu.pc.uint16_value);
+		flight_recorder_log_irq(z80machine.cpu.pc.uint16_value);
 	} else {
 		flight_recorder_log_op(FR_FETCH_1, addr, res.val);
 		if (res.real_val != res.val) {
@@ -165,14 +156,14 @@ zuint16 FASTCODE NOFLASH(machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack)(M
 }
 
 // read memory or detect interrupt acknowledge cycle while doing NOP during HALTed state
-zuint8 FASTCODE NOFLASH(machine_halt_nop)(Machine *self, zuint16 addr)
+zuint8 FASTCODE NOFLASH(machine_halt_nop)(zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, false);
+	Generic_mem_read_result res = machine_cpu_read_generic(addr, false);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		// this is IRQ acknowledge
-		flight_recorder_log_irq(self->cpu.pc.uint16_value);
+		flight_recorder_log_irq(z80machine.cpu.pc.uint16_value);
 		// notify the calling code by setting a flag in the CPU state
-		self->cpu.request = Z80_REQUEST_INT;
+		z80machine.cpu.request = Z80_REQUEST_INT;
 	} else {
 		flight_recorder_log_halt_nop(addr);
 		if (res.real_val != res.val) {
@@ -184,14 +175,14 @@ zuint8 FASTCODE NOFLASH(machine_halt_nop)(Machine *self, zuint16 addr)
 }
 
 // read memory during a second succesive (in case of a prefixed opcode) m1 opcode fetch
-zuint16 FASTCODE NOFLASH(machine_cpu_fetch_2nd_opcode)(Machine *self, zuint16 addr)
+zuint16 FASTCODE NOFLASH(machine_cpu_fetch_2nd_opcode)(zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, true);
+	Generic_mem_read_result res = machine_cpu_read_generic(addr, true);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
 		DumpSplitBrain();
 	} else {
-		flight_recorder_log_op(FR_FETCH_1, addr, res.val);
+		flight_recorder_log_op(FR_FETCH_2, addr, res.val);
 		if (res.real_val != res.val) {
 			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
 			DumpSplitBrain();
@@ -200,10 +191,28 @@ zuint16 FASTCODE NOFLASH(machine_cpu_fetch_2nd_opcode)(Machine *self, zuint16 ad
 	return res.real_val;
 }
 
-// read memory
-zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
+// read memory during fetch intruction "params"
+zuint16 FASTCODE NOFLASH(machine_cpu_fetch_params)(zuint16 addr)
 {
-	Generic_mem_read_result res = machine_cpu_read_generic(self, addr, false);
+	Generic_mem_read_result res = machine_cpu_read_generic(addr, true);
+	if (res.real_val & (Z80_REQUEST_INT << 8)) {
+		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
+		DumpSplitBrain();
+	} else {
+		flight_recorder_log_op(FR_FETCH_PARAMS, addr, res.val);
+		if (res.real_val != res.val) {
+			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
+			DumpSplitBrain();
+		}
+	}
+	return res.real_val;
+}
+
+
+// read memory
+zuint8 FASTCODE NOFLASH(machine_cpu_read)(zuint16 addr)
+{
+	Generic_mem_read_result res = machine_cpu_read_generic(addr, false);
 	if (res.real_val & (Z80_REQUEST_INT << 8)) {
 		/*
 		This is now handled via machine_halt_nop
@@ -215,8 +224,8 @@ zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 		printf("Emulation split brain - unexpected IRQ acknowledge cycle detected\n");
 		DumpSplitBrain();
 	} else {
-		int is_at_pc = (self->cpu.pc.uint16_value == addr);
-		flight_recorder_log_op(is_at_pc ? FR_FETCH : FR_MEM_RD, addr, res.val);
+		//int is_at_pc = (z80machine.cpu.pc.uint16_value == addr);
+		flight_recorder_log_op(FR_MEM_RD, addr, res.val);
 		if (res.real_val != res.val) {
 			printf("Emulation split brain - read from memory: %04X = %02X (real value: %02X)\n", addr, res.val, res.real_val);
 			DumpSplitBrain();
@@ -226,7 +235,7 @@ zuint8 FASTCODE NOFLASH(machine_cpu_read)(Machine *self, zuint16 addr)
 }
 
 // write memory
-void FASTCODE NOFLASH(machine_cpu_write)(Machine *self, zuint16 addr, zuint8 data)
+void FASTCODE NOFLASH(machine_cpu_write)(zuint16 addr, zuint8 data)
 {
 	uint8_t real_val = sniff_mem_wr();
 	flight_recorder_log_mem_wr(addr, data);
@@ -236,12 +245,12 @@ void FASTCODE NOFLASH(machine_cpu_write)(Machine *self, zuint16 addr, zuint8 dat
 		DumpSplitBrain();
 	}
 	if (addr >= 0x4000) { // write only to RAM
-		self->memory[addr] = real_val;
+		z80machine.memory[addr] = data;
 	}
 }
 
 // read port
-zuint8 FASTCODE NOFLASH(machine_cpu_in)(Machine *self, zuint16 addr)
+zuint8 FASTCODE NOFLASH(machine_cpu_in)(zuint16 addr)
 {
 	uint8_t val = sniff_io_rd();
 	flight_recorder_log_io_rd(addr, val);
@@ -249,7 +258,7 @@ zuint8 FASTCODE NOFLASH(machine_cpu_in)(Machine *self, zuint16 addr)
 }
 
 // write port
-void FASTCODE NOFLASH(machine_cpu_out)(Machine *self, zuint16 addr, zuint8 data)
+void FASTCODE NOFLASH(machine_cpu_out)(zuint16 addr, zuint8 data)
 {
 	uint8_t real_val = sniff_io_wr();
 	flight_recorder_log_io_wr(addr, data);
@@ -274,38 +283,32 @@ void FASTCODE NOFLASH(shadow_emulator)() {
 	}
 
 	// initialize Z80
-	machine.cpu.context      = &machine;
-	machine.cpu.fetch_opcode_or_detect_interrupt = (Z80ReadOrInterrupt)machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack;
-	machine.cpu.nop          = (Z80Read )machine_halt_nop;
-	machine.cpu.fetch_opcode = (Z80Read )machine_cpu_fetch_2nd_opcode;
-	machine.cpu.fetch        =
-	machine.cpu.read         = (Z80Read )machine_cpu_read;
-	machine.cpu.write        = (Z80Write)machine_cpu_write;
-	machine.cpu.in           = (Z80Read )machine_cpu_in;
-	machine.cpu.out          = (Z80Write)machine_cpu_out;
-	machine.cpu.halt         = Z_NULL;
-	machine.cpu.nmia         = Z_NULL;
-	machine.cpu.inta         = Z_NULL;
-	machine.cpu.int_fetch    = Z_NULL;
-	machine.cpu.ld_i_a       = Z_NULL;
-	machine.cpu.ld_r_a       = Z_NULL;
-	machine.cpu.reti         = Z_NULL;
-	machine.cpu.retn         = Z_NULL;
-	machine.cpu.hook         = Z_NULL;
-	machine.cpu.illegal      = Z_NULL;
-	machine.cpu.options      = Z80_MODEL_ZILOG_NMOS;
+	z80machine.cpu.nop          = (Z80Read )machine_halt_nop;
+	z80machine.cpu.in           = (Z80Read )machine_cpu_in;
+	z80machine.cpu.out          = (Z80Write)machine_cpu_out;
+	z80machine.cpu.halt         = Z_NULL;
+	z80machine.cpu.nmia         = Z_NULL;
+	z80machine.cpu.inta         = Z_NULL;
+	z80machine.cpu.int_fetch    = Z_NULL;
+	z80machine.cpu.ld_i_a       = Z_NULL;
+	z80machine.cpu.ld_r_a       = Z_NULL;
+	z80machine.cpu.reti         = Z_NULL;
+	z80machine.cpu.retn         = Z_NULL;
+	z80machine.cpu.hook         = Z_NULL;
+	z80machine.cpu.illegal      = Z_NULL;
+	z80machine.cpu.options      = Z80_MODEL_ZILOG_NMOS;
 
 	// copy ROM to memory
 	for (int i = 0; i < sizeof(testrom_rom); i++) {
 		//Memory[i] = didaktik_gama_1989_rom[i];
 		//Memory[i] = testrom[i];
-		//machine.memory[i] = testrom_rom[i];
-		machine.memory[i] = bios_rom[i];
+		//z80machine.memory[i] = testrom_rom[i];
+		z80machine.memory[i] = bios_rom[i];
 	}
 
-	snapshot_init(machine.memory); // initialize snapshot loading
+	snapshot_init(z80machine.memory); // initialize snapshot loading
 
-	z80_power(&machine.cpu, Z_FALSE);
+	z80_power(Z_FALSE);
 
     // except /ROMCS and /RESET which will be output
     //gpio_init(PIN_NUMBER_ROMCS);
@@ -321,11 +324,11 @@ void FASTCODE NOFLASH(shadow_emulator)() {
     gpio_put(PIN_NUMBER_RESET, 1);
 
 
-	z80_run(&machine.cpu, 50000000);
+	z80_run(500000);
 	flight_recorder_dump();
 	printf("Emulation finished\n");
-	printf("Interrupt mode: IM%d\n", machine.cpu.im);
-	printf("PC: 0x%04X\n", machine.cpu.pc.uint16_value);
+	printf("Interrupt mode: IM%d\n", z80machine.cpu.im);
+	printf("PC: 0x%04X\n", z80machine.cpu.pc.uint16_value);
 	while (1) {
 		// wait here
 	}

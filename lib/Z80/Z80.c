@@ -232,7 +232,7 @@
 
 /* MARK: - Types */
 
-typedef zuint8 (* Insn)(Z80 *self);
+typedef void (* Insn)();
 
 #ifdef Z80_WITH_FULL_IM0
 	typedef struct {
@@ -254,77 +254,76 @@ typedef zuint8 (* Insn)(Z80 *self);
 
 /* MARK: - Instance Variable and Callback Shortcuts */
 
-#define MEMPTR	  self->memptr.uint16_value
-#define PC	  self->pc.uint16_value
-#define SP	  self->sp.uint16_value
-#define XY	  self->xy.uint16_value
-#define IX	  self->ix_iy[0].uint16_value
-#define IY	  self->ix_iy[1].uint16_value
-#define AF	  self->af.uint16_value
-#define BC	  self->bc.uint16_value
-#define DE	  self->de.uint16_value
-#define HL	  self->hl.uint16_value
-#define AF_	  self->af_.uint16_value
-#define BC_	  self->bc_.uint16_value
-#define DE_	  self->de_.uint16_value
-#define HL_	  self->hl_.uint16_value
-#define MEMPTRH	  self->memptr.uint8_values.at_1
-#define MEMPTRL	  self->memptr.uint8_values.at_0
-#define PCH	  self->pc.uint8_values.at_1
-#define A	  self->af.uint8_values.at_1
-#define F	  self->af.uint8_values.at_0
-#define B	  self->bc.uint8_values.at_1
-#define C	  self->bc.uint8_values.at_0
-#define E	  self->de.uint8_values.at_0
-#define L	  self->hl.uint8_values.at_0
-#define I	  self->i
-#define R	  self->r
-#define R7	  self->r7
-#define Q	  self->q
-#define IFF1	  self->iff1
-#define IFF2	  self->iff2
-#define IM	  self->im
-#define HALT_LINE self->halt_line
-#define INT_LINE  self->int_line
-#define DATA	  self->data.uint8_array
-#define REQUEST	  self->request
-#define RESUME	  self->resume
-#define OPTIONS	  self->options
-#define CONTEXT	  self->context
+#define MEMPTR	  z80machine.cpu.memptr.uint16_value
+#define PC	  z80machine.cpu.pc.uint16_value
+#define SP	  z80machine.cpu.sp.uint16_value
+#define XY	  z80machine.cpu.xy.uint16_value
+#define IX	  z80machine.cpu.ix_iy[0].uint16_value
+#define IY	  z80machine.cpu.ix_iy[1].uint16_value
+#define AF	  z80machine.cpu.af.uint16_value
+#define BC	  z80machine.cpu.bc.uint16_value
+#define DE	  z80machine.cpu.de.uint16_value
+#define HL	  z80machine.cpu.hl.uint16_value
+#define AF_	  z80machine.cpu.af_.uint16_value
+#define BC_	  z80machine.cpu.bc_.uint16_value
+#define DE_	  z80machine.cpu.de_.uint16_value
+#define HL_	  z80machine.cpu.hl_.uint16_value
+#define MEMPTRH	  z80machine.cpu.memptr.uint8_values.at_1
+#define MEMPTRL	  z80machine.cpu.memptr.uint8_values.at_0
+#define PCH	  z80machine.cpu.pc.uint8_values.at_1
+#define A	  z80machine.cpu.af.uint8_values.at_1
+#define F	  z80machine.cpu.af.uint8_values.at_0
+#define B	  z80machine.cpu.bc.uint8_values.at_1
+#define C	  z80machine.cpu.bc.uint8_values.at_0
+#define E	  z80machine.cpu.de.uint8_values.at_0
+#define L	  z80machine.cpu.hl.uint8_values.at_0
+#define I	  z80machine.cpu.i
+#define R	  z80machine.cpu.r
+#define R7	  z80machine.cpu.r7
+#define Q	  z80machine.cpu.q
+#define IFF1	  z80machine.cpu.iff1
+#define IFF2	  z80machine.cpu.iff2
+#define IM	  z80machine.cpu.im
+#define HALT_LINE z80machine.cpu.halt_line
+#define INT_LINE  z80machine.cpu.int_line
+#define DATA	  z80machine.cpu.data.uint8_array
+#define REQUEST	  z80machine.cpu.request
+#define RESUME	  z80machine.cpu.resume
+#define OPTIONS	  z80machine.cpu.options
 
-#define FETCH_OPCODE(address) self->fetch_opcode(CONTEXT, address)
-#define FETCH(address)	      self->fetch	(CONTEXT, address)
-#define READ(address)	      self->read	(CONTEXT, address)
-#define WRITE(address, value) self->write	(CONTEXT, address, value)
-#define IN(port)	      self->in		(CONTEXT, port)
-#define OUT(port, value)      self->out		(CONTEXT, port, value)
-#define NOTIFY(callback)      if (self->callback != Z_NULL) self->callback(CONTEXT)
+#define FETCH_OPCODE(address) machine_cpu_fetch_2nd_opcode(address)
+#define FETCH(address)	      machine_cpu_fetch_params(address)
+#define READ(address)	      machine_cpu_read(address)
+#define WRITE(address, value) machine_cpu_write(address, value)
+#define IN(port)	      z80machine.cpu.in		(port)
+#define OUT(port, value)      z80machine.cpu.out		(port, value)
+#define NOTIFY(callback)      if (z80machine.cpu.callback != Z_NULL) z80machine.cpu.callback()
 
 
 /* MARK: - 16-bit Callback Operations */
 
-static Z_ALWAYS_INLINE zuint16 fetch_16(Z80 *self, zuint16 address)
+static Z_ALWAYS_INLINE FASTCODE zuint16 fetch_16(zuint16 address)
 	{
 	zuint8 l = FETCH(address);
 	return (zuint16)(l | ((zuint16)FETCH(address + 1) << 8));
 	}
 
 
-static Z_ALWAYS_INLINE zuint16 read_16(Z80 *self, zuint16 address)
+static Z_ALWAYS_INLINE FASTCODE zuint16 read_16(zuint16 address)
 	{
 	zuint8 l = READ(address);
 	return (zuint16)(l | ((zuint16)READ(address + 1) << 8));
 	}
 
 
-static Z_ALWAYS_INLINE void write_16f(Z80 *self, zuint16 address, zuint16 value)
+static Z_ALWAYS_INLINE FASTCODE void write_16f(zuint16 address, zuint16 value)
 	{
 	WRITE(address, (zuint8)value);
 	WRITE(address + 1, (zuint8)(value >> 8));
 	}
 
 
-static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
+static Z_ALWAYS_INLINE FASTCODE void write_16b(zuint16 address, zuint16 value)
 	{
 	WRITE(address + 1, (zuint8)(value >> 8));
 	WRITE(address, (zuint8)value);
@@ -332,18 +331,18 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 
 
 #ifndef Z80_WITH_FULL_IM0
-	static Z_ALWAYS_INLINE zuint16 int_fetch_16(Z80 *self)
+	static Z_ALWAYS_INLINE zuint16 int_fetch_16()
 		{
-		zuint8 l = self->int_fetch(CONTEXT, PC);
-		return (zuint16)(l | ((zuint16)self->int_fetch(CONTEXT, PC) << 8));
+		zuint8 l = z80machine.cpu.int_fetch(PC);
+		return (zuint16)(l | ((zuint16)z80machine.cpu.int_fetch(PC) << 8));
 		}
 #endif
 
 
-#define FETCH_16(address)	  fetch_16 (self, address)
-#define READ_16(address)	  read_16  (self, address)
-#define WRITE_16F(address, value) write_16f(self, address, value)
-#define WRITE_16B(address, value) write_16b(self, address, value)
+#define FETCH_16(address)	  fetch_16 (address)
+#define READ_16(address)	  read_16  (address)
+#define WRITE_16F(address, value) write_16f(address, value)
+#define WRITE_16B(address, value) write_16b(address, value)
 
 
 /* MARK: - Interrupt Mode 0: Callback Trampolines */
@@ -352,7 +351,7 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 	static zuint8 im0_fetch(IM0 const *self, zuint16 address)
 		{
 		Z_UNUSED(address)
-		return self->z80->int_fetch(CONTEXT, self->pc);
+		return z80machine.cpu.z80->int_fetch(CONTEXT, z80machine.cpu.pc);
 		}
 
 
@@ -378,13 +377,13 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 
 #	ifdef Z80_WITH_IM0_RETX_NOTIFICATIONS
 		#define IM0_NOTIFY_RETX(callback)		     \
-			if (	self->callback != Z_NULL &&	     \
-				(self->z80->options &		     \
+			if (	z80machine.cpu.callback != Z_NULL &&	     \
+				(z80machine.cpu.z80->options &		     \
 				Z80_OPTION_IM0_RETX_NOTIFICATIONS)   \
 			)					     \
 				{				     \
-				self->z80->data.uint8_array[2] |= 2; \
-				self->callback(CONTEXT);	     \
+				z80machine.cpu.z80->data.uint8_array[2] |= 2; \
+				z80machine.cpu.callback(CONTEXT);	     \
 				}
 
 
@@ -540,28 +539,28 @@ static Z_ALWAYS_INLINE void write_16b(Z80 *self, zuint16 address, zuint16 value)
 	       | 111 = a | 111 = a   |
 	       '--------------------*/
 
-static zusize const NOFLASH_CONST(j_k_table)[8] = {
-	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_0),
-	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_0),
-	Z_MEMBER_OFFSET(Z80, hl.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, hl.uint8_values.at_0),
+static zuint8* const NOFLASH_CONST(j_k_table)[8] = {
+	&z80machine.cpu.bc.uint8_values.at_1,
+	&z80machine.cpu.bc.uint8_values.at_0,
+	&z80machine.cpu.de.uint8_values.at_1,
+	&z80machine.cpu.de.uint8_values.at_0,
+	&z80machine.cpu.hl.uint8_values.at_1,
+	&z80machine.cpu.hl.uint8_values.at_0,
 	0,
-	Z_MEMBER_OFFSET(Z80, af.uint8_values.at_1)};
+	&z80machine.cpu.af.uint8_values.at_1};
 
-static zusize const NOFLASH_CONST(o_p_table)[8] = {
-	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, bc.uint8_values.at_0),
-	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, de.uint8_values.at_0),
-	Z_MEMBER_OFFSET(Z80, xy.uint8_values.at_1),
-	Z_MEMBER_OFFSET(Z80, xy.uint8_values.at_0),
+static zuint8* const NOFLASH_CONST(o_p_table)[8] = {
+	&z80machine.cpu.bc.uint8_values.at_1,
+	&z80machine.cpu.bc.uint8_values.at_0,
+	&z80machine.cpu.de.uint8_values.at_1,
+	&z80machine.cpu.de.uint8_values.at_0,
+	&z80machine.cpu.xy.uint8_values.at_1,
+	&z80machine.cpu.xy.uint8_values.at_0,
 	0,
-	Z_MEMBER_OFFSET(Z80, af.uint8_values.at_1)};
+	&z80machine.cpu.af.uint8_values.at_1};
 
 #define REGISTER_8(table, offset, shift) \
-	*((zuint8 *)self + table[(DATA[offset] shift) & 7])
+	*table[(DATA[offset] shift) & 7]
 
 #define J0 REGISTER_8(j_k_table, 0, >> 3   )
 #define J1 REGISTER_8(j_k_table, 1, >> 3   )
@@ -583,26 +582,26 @@ static zusize const NOFLASH_CONST(o_p_table)[8] = {
 '----------'   | 11 = sp | 11 = af | 11 = sp |
 	       '----------------------------*/
 
-static zusize const NOFLASH_CONST(s_table)[4] = {
-	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
-	Z_MEMBER_OFFSET(Z80, de.uint16_value),
-	Z_MEMBER_OFFSET(Z80, hl.uint16_value),
-	Z_MEMBER_OFFSET(Z80, sp.uint16_value)};
+static zuint16* const NOFLASH_CONST(s_table)[4] = {
+	&z80machine.cpu.bc.uint16_value,
+	&z80machine.cpu.de.uint16_value,
+	&z80machine.cpu.hl.uint16_value,
+	&z80machine.cpu.sp.uint16_value};
 
-static zusize const NOFLASH_CONST(t_table)[4] = {
-	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
-	Z_MEMBER_OFFSET(Z80, de.uint16_value),
-	Z_MEMBER_OFFSET(Z80, hl.uint16_value),
-	Z_MEMBER_OFFSET(Z80, af.uint16_value)};
+static zuint16* const NOFLASH_CONST(t_table)[4] = {
+	&z80machine.cpu.bc.uint16_value,
+	&z80machine.cpu.de.uint16_value,
+	&z80machine.cpu.hl.uint16_value,
+	&z80machine.cpu.af.uint16_value};
 
-static zusize const NOFLASH_CONST(w_table)[4] = {
-	Z_MEMBER_OFFSET(Z80, bc.uint16_value),
-	Z_MEMBER_OFFSET(Z80, de.uint16_value),
-	Z_MEMBER_OFFSET(Z80, xy.uint16_value),
-	Z_MEMBER_OFFSET(Z80, sp.uint16_value)};
+static zuint16* const NOFLASH_CONST(w_table)[4] = {
+	&z80machine.cpu.bc.uint16_value,
+	&z80machine.cpu.de.uint16_value,
+	&z80machine.cpu.xy.uint16_value,
+	&z80machine.cpu.sp.uint16_value};
 
 #define REGISTER_16(table, offset) \
-	*(zuint16 *)(void *)((zchar *)self + table[(DATA[offset] >> 4) & 3])
+	*table[(DATA[offset] >> 4) & 3]
 
 #define SS0 REGISTER_16(s_table, 0)
 #define SS1 REGISTER_16(s_table, 1)
@@ -628,7 +627,7 @@ static zusize const NOFLASH_CONST(w_table)[4] = {
 static zuint8 const NOFLASH_CONST(z_table)[8] = {ZF, ZF, CF, CF, PF, PF, SF, SF};
 
 
-static Z_ALWAYS_INLINE zsint zzz(Z80 const *self, zuint8 mask)
+static Z_ALWAYS_INLINE zsint zzz(zuint8 mask)
 	{
 	zsint z = (DATA[0] >> 3) & mask;
 
@@ -656,7 +655,7 @@ static Z_ALWAYS_INLINE zsint zzz(Z80 const *self, zuint8 mask)
 	       | 101 = dec  szybxv1. |
 	       '--------------------*/
 
-static void FASTCODE NOFLASH(uuu)(Z80 *self, zuint8 offset, zuint8 rhs)
+static void INLINE FASTCODE uuu(zuint8 offset, zuint8 rhs)
 	{
 	zuint8 t, f;
 
@@ -741,7 +740,7 @@ static void FASTCODE NOFLASH(uuu)(Z80 *self, zuint8 offset, zuint8 rhs)
 	}
 
 
-static zuint8 FASTCODE NOFLASH(vvv)(Z80 *self, zuint8 offset, zuint8 value)
+static zuint8 FASTCODE NOFLASH(vvv)(zuint8 offset, zuint8 value)
 	{
 	zuint8 dec = DATA[offset] & 1;
 	zuint8 nf  = (zuint8)(dec << 1);
@@ -774,7 +773,7 @@ static zuint8 FASTCODE NOFLASH(vvv)(Z80 *self, zuint8 offset, zuint8 value)
 	       | 111 = srl |
 	       '----------*/
 
-static zuint8 FASTCODE NOFLASH(ggg)(Z80 *self, zuint8 offset, zuint8 value)
+static zuint8 FASTCODE NOFLASH(ggg)(zuint8 offset, zuint8 value)
 	{
 	zuint8 cf;
 
@@ -871,7 +870,7 @@ static zuint8 FASTCODE NOFLASH(ggg)(Z80 *self, zuint8 offset, zuint8 value)
 '----------'   | 1 = set |
 	       '--------*/
 
-static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
+static Z_ALWAYS_INLINE zuint8 m(zuint8 offset, zuint8 value)
 	{
 	zuint8 t;
 
@@ -885,17 +884,17 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 
 /* MARK: - Function Shortcuts and Reusable Code */
 
-#define INSN(name)	     static zuint8 FASTCODE NOFLASH(name)(Z80 *self)
+#define INSN(name)	     static void FASTCODE NOFLASH(name)()
 #define N(offset)	     ((DATA[offset] >> 3) & 7)
-#define Z(mask)		     zzz(self, mask)
-#define U0(value)	     uuu(self, 0, value)
-#define U1(value)	     uuu(self, 1, value)
-#define V0(value)	     vvv(self, 0, value)
-#define V1(value)	     vvv(self, 1, value)
-#define G1(value)	     ggg(self, 1, value)
-#define G3(value)	     ggg(self, 3, value)
-#define M1(value)	     m	(self, 1, value)
-#define M3(value)	     m	(self, 3, value)
+#define Z(mask)		     zzz(mask)
+#define U0(value)	     uuu(0, value)
+#define U1(value)	     uuu(1, value)
+#define V0(value)	     vvv(0, value)
+#define V1(value)	     vvv(1, value)
+#define G1(value)	     ggg(1, value)
+#define G3(value)	     ggg(3, value)
+#define M1(value)	     m	(1, value)
+#define M3(value)	     m	(3, value)
 #define PUSH(value)	     WRITE_16B(SP -= 2, value)
 #define R_ALL		     ((R & 127) | (R7 & 128))
 #define RET		     MEMPTR = PC = READ_16(SP); SP += 2
@@ -913,8 +912,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		(IFF2 << 2) | /* PF = IFF2		   */ \
 		F_C);	      /* CF unchanged		   */ \
 							      \
-	PC += 2;					      \
-	return 9
+	PC += 2;
 
 
 #define LD_VWORD_COMMON(insn_size)			   \
@@ -930,8 +928,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 	Q_0				 \
 	pc_increment;			 \
 	rhs = MEMPTR = READ_16(sp = SP); \
-	WRITE_16B(sp, t);		 \
-	return 19
+	WRITE_16B(sp, t);
 
 
 #define LDX(operator)					     \
@@ -946,8 +943,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		(t & XF)       |  /* XF = (A + [HLi]).3	  */ \
 		(!!(--BC) << 2)); /* PF = !!BCo		  */ \
 							     \
-	PC += 2;					     \
-	return 16
+	PC += 2;
 
 
 #define LDXR(operator)							   \
@@ -963,7 +959,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 			PF;		    /* PF = 1			*/ \
 									   \
 		MEMPTR = PC + 1;					   \
-		return 21;						   \
+		return;						   \
 		}							   \
 									   \
 	FLAGS = (zuint8)(	 /* HF, PF, NF = 0	 */		   \
@@ -971,8 +967,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		((t & 2) << 4) | /* YF = (A + [HLi]).1	 */		   \
 		(t & XF));	 /* XF = (A + [HLi]).3	 */		   \
 									   \
-	PC += 2;							   \
-	return 16
+	PC += 2;
 
 
 #define CPX(operator)						 \
@@ -992,8 +987,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		F_C);		  /* CF unchanged	      */ \
 								 \
 	MEMPTR operator;					 \
-	PC += 2;						 \
-	return 16
+	PC += 2;
 
 
 #define CPXR(operator)						 \
@@ -1015,7 +1009,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		/* YF = PCi.13; XF = PCi.11 */			 \
 		FLAGS = f | ((PC >> 8) & YXF);			 \
 		MEMPTR = PC + 1;				 \
-		return 21;					 \
+		return;					 \
 		}						 \
 								 \
 	FLAGS = (zuint8)(					 \
@@ -1024,8 +1018,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		(t1 & XF));	  /* XF = (A - [HLi] - HFo).3 */ \
 								 \
 	MEMPTR operator;					 \
-	PC += 2;						 \
-	return 16
+	PC += 2;
 
 
 #define ADD_16(lhs, rhs, pc_increment)					     \
@@ -1040,8 +1033,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 									     \
 	MEMPTR = lhs + 1;						     \
 	lhs = (zuint16)t;						     \
-	pc_increment;							     \
-	return 11
+	pc_increment;
 
 
 #define ADC_SBC_HL_SS(operator, pf_overflow_rhs, or_nf)			    \
@@ -1060,8 +1052,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 									    \
 	MEMPTR = HL + 1;						    \
 	HL = (zuint16)t;						    \
-	PC += 2;							    \
-	return 15
+	PC += 2;
 
 
 /* rla	.-------------------------.   rra  .-------------------------.
@@ -1078,8 +1069,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		A_YX  | /* YF = Y; XF = X	       */ \
 		cf;	/* CF = Ai.7 (rla), Ai.0 (rra) */ \
 			/* HF, NF = 0		       */ \
-	PC++;						  \
-	return 4
+	PC++;				
 
 
 /* rld	 .------------------------.	 rrd   .------------------------.
@@ -1101,8 +1091,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		PF_PARITY(A) | /* PF = parity		    */ \
 		F_C);	       /* CF unchanged		    */ \
 							       \
-	PC += 2;					       \
-	return 18
+	PC += 2;
 
 
 #define DJNZ_JR_Z(condition, cycles_if_true, cycles_if_false) \
@@ -1114,11 +1103,10 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 	if (condition)					      \
 		{					      \
 		MEMPTR = (PC += 2 + offset);		      \
-		return cycles_if_true;			      \
+		return;			      \
 		}					      \
 							      \
-	PC += 2;					      \
-	return cycles_if_false
+	PC += 2;
 
 
 #define RETX(mnemonic)						   \
@@ -1126,8 +1114,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 	NOTIFY(mnemonic);					   \
 	Q_0							   \
 	RET;							   \
-	if ((IFF1 = IFF2) && INT_LINE) REQUEST |= Z80_REQUEST_INT; \
-	return 14
+	if ((IFF1 = IFF2) && INT_LINE) REQUEST |= Z80_REQUEST_INT;
 
 
 #define IN_VC(set_lhs)					       \
@@ -1143,8 +1130,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		F_C);	       /* CF unchanged		    */ \
 							       \
 	set_lhs						       \
-	PC += 2;					       \
-	return 12
+	PC += 2;
 
 
 #define INX_OUTX_COMMON(io)						       \
@@ -1155,8 +1141,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 		((t > 255) ? HCF : 0)  | /* HF, CF = T > 255		    */ \
 		((io >> 6) & NF));	 /* NF = IO.7			    */ \
 									       \
-	PC += 2;							       \
-	return 16
+	PC += 2;
 
 
 #define INX(hl_operator, memptr_operator)		       \
@@ -1230,7 +1215,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 				: PF_PARITY(p ^ (B & 7))));	      \
 								      \
 		MEMPTR = PC + 1;				      \
-		return 21;					      \
+		return;					      \
 		}						      \
 								      \
 	FLAGS = ZF	     | /* ZF = 1; SF, YF, XF = 0     */	      \
@@ -1250,8 +1235,7 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 	hcf = (t > 255) ? HCF : 0;				 \
 	p = (t & 7) ^ --B;					 \
 	INXR_OTXR_COMMON;					 \
-	PC += 2;						 \
-	return 16
+	PC += 2;
 
 
 #define OTXR(hl_operator, memptr_operator) \
@@ -1264,13 +1248,12 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 	OUT(BC, io);			   \
 	INXR_OTXR_COMMON;		   \
 	MEMPTR = BC memptr_operator 1;	   \
-	PC += 2;			   \
-	return 16
+	PC += 2;
 
 
 #define EXIT_HALT      \
 	HALT_LINE = 0; \
-	if (self->halt != Z_NULL) self->halt(CONTEXT, 0)
+	if (z80machine.cpu.halt != Z_NULL) z80machine.cpu.halt(0)
 
 
 /* MARK: - Instructions: 8-Bit Load Group */
@@ -1302,24 +1285,24 @@ static Z_ALWAYS_INLINE zuint8 m(Z80 *self, zuint8 offset, zuint8 value)
 | (*) Undocumented instruction.						      |
 '============================================================================*/
 
-INSN(ld_J_K	    ) {Q_0 J0 = K0; PC++;					 return	 4;}
-INSN(ld_O_P	    ) {Q_0 O  = P;  PC += 2;					 return	 4;}
-INSN(ld_J_BYTE	    ) {Q_0 J0 = FETCH((PC += 2) - 1);				 return	 7;}
-INSN(ld_O_BYTE	    ) {Q_0 O  = FETCH((PC += 3) - 1);				 return	 7;}
-INSN(ld_J_vhl	    ) {Q_0 J0 = READ(HL); PC++;					 return	 7;}
-INSN(ld_J_vXYpOFFSET) {Q_0 J1 = READ(FETCH_XY_EA((PC += 3) - 1));		 return 15;}
-INSN(ld_vhl_K	    ) {Q_0 PC++; WRITE(HL, K0);					 return	 7;}
-INSN(ld_vXYpOFFSET_K) {Q_0 WRITE(FETCH_XY_EA((PC += 3) - 1), K1);		 return 15;}
-INSN(ld_vhl_BYTE    ) {Q_0 WRITE(HL, FETCH((PC += 2) - 1));			 return 10;}
-INSN(ld_a_vbc	    ) {Q_0 MEMPTR = BC + 1; A = READ(BC); PC++;			 return	 7;}
-INSN(ld_a_vde	    ) {Q_0 MEMPTR = DE + 1; A = READ(DE); PC++;			 return	 7;}
-INSN(ld_a_vWORD	    ) {Q_0 MEMPTR = FETCH_16((PC += 3) - 2); A = READ(MEMPTR++); return 13;}
-INSN(ld_vbc_a	    ) {Q_0 PC++; MEMPTRL = C + 1; WRITE(BC, MEMPTRH = A);	 return	 7;}
-INSN(ld_vde_a	    ) {Q_0 PC++; MEMPTRL = E + 1; WRITE(DE, MEMPTRH = A);	 return	 7;}
+INSN(ld_J_K	    ) {Q_0 J0 = K0; PC++;					 }
+INSN(ld_O_P	    ) {Q_0 O  = P;  PC += 2;					 }
+INSN(ld_J_BYTE	    ) {Q_0 J0 = FETCH((PC += 2) - 1);				 }
+INSN(ld_O_BYTE	    ) {Q_0 O  = FETCH((PC += 3) - 1);				 }
+INSN(ld_J_vhl	    ) {Q_0 J0 = READ(HL); PC++;					 }
+INSN(ld_J_vXYpOFFSET) {Q_0 J1 = READ(FETCH_XY_EA((PC += 3) - 1));		 }
+INSN(ld_vhl_K	    ) {Q_0 PC++; WRITE(HL, K0);					 }
+INSN(ld_vXYpOFFSET_K) {Q_0 WRITE(FETCH_XY_EA((PC += 3) - 1), K1);		 }
+INSN(ld_vhl_BYTE    ) {Q_0 WRITE(HL, FETCH((PC += 2) - 1));			 }
+INSN(ld_a_vbc	    ) {Q_0 MEMPTR = BC + 1; A = READ(BC); PC++;			 }
+INSN(ld_a_vde	    ) {Q_0 MEMPTR = DE + 1; A = READ(DE); PC++;			 }
+INSN(ld_a_vWORD	    ) {Q_0 MEMPTR = FETCH_16((++PC)); PC += 2; A = READ(MEMPTR++); }
+INSN(ld_vbc_a	    ) {Q_0 PC++; MEMPTRL = C + 1; WRITE(BC, MEMPTRH = A);	 }
+INSN(ld_vde_a	    ) {Q_0 PC++; MEMPTRL = E + 1; WRITE(DE, MEMPTRH = A);	 }
 INSN(ld_a_i	    ) {LD_A_IR(I);							   }
 INSN(ld_a_r	    ) {LD_A_IR(R_ALL);							   }
-INSN(ld_i_a	    ) {NOTIFY(ld_i_a); Q_0 I = A;      PC += 2;			 return	 9;}
-INSN(ld_r_a	    ) {NOTIFY(ld_r_a); Q_0 R = R7 = A; PC += 2;			 return	 9;}
+INSN(ld_i_a	    ) {NOTIFY(ld_i_a); Q_0 I = A;      PC += 2;			 }
+INSN(ld_r_a	    ) {NOTIFY(ld_r_a); Q_0 R = R7 = A; PC += 2;			 }
 
 
 INSN(ld_vXYpOFFSET_BYTE)
@@ -1329,7 +1312,6 @@ INSN(ld_vXYpOFFSET_BYTE)
 	Q_0
 	ea = FETCH_XY_EA((PC += 4) - 2);
 	WRITE(ea, FETCH(PC - 1));
-	return 15;
 	}
 
 
@@ -1340,7 +1322,6 @@ INSN(ld_vWORD_a)
 	Q_0
 	MEMPTRL = (zuint8)((ea = FETCH_16((PC += 3) - 2)) + 1);
 	WRITE(ea, MEMPTRH = A);
-	return 13;
 	}
 
 
@@ -1368,20 +1349,20 @@ INSN(ld_vWORD_a)
 |    M-cycles of the instruction.					|
 '======================================================================*/
 
-INSN(ld_SS_WORD ) {Q_0 SS0 = FETCH_16((PC += 3) - 2);	   return 10;}
-INSN(ld_XY_WORD ) {Q_0 XY  = FETCH_16((PC += 4) - 2);	   return 10;}
-INSN(ld_hl_vWORD) {LD_VWORD_COMMON(3); HL  = READ_16(n);   return 16;}
-INSN(ld_SS_vWORD) {LD_VWORD_COMMON(4); SS1 = READ_16(n);   return 20;}
-INSN(ld_XY_vWORD) {LD_VWORD_COMMON(4); XY  = READ_16(n);   return 16;}
-INSN(ld_vWORD_hl) {LD_VWORD_COMMON(3); WRITE_16F(n, HL );  return 16;}
-INSN(ld_vWORD_SS) {LD_VWORD_COMMON(4); WRITE_16F(n, SS1);  return 20;}
-INSN(ld_vWORD_XY) {LD_VWORD_COMMON(4); WRITE_16F(n, XY );  return 16;}
-INSN(ld_sp_hl	) {Q_0 SP = HL; PC++;			   return  6;}
-INSN(ld_sp_XY	) {Q_0 SP = XY; PC += 2;		   return  6;}
-INSN(push_TT	) {Q_0 PC++;	PUSH(TT);		   return 11;}
-INSN(push_XY	) {Q_0 PC += 2; PUSH(XY);		   return 11;}
-INSN(pop_TT	) {Q_0 TT = READ_16(SP); SP += 2; PC++;	   return 10;}
-INSN(pop_XY	) {Q_0 XY = READ_16(SP); SP += 2; PC += 2; return 10;}
+INSN(ld_SS_WORD ) {Q_0 SS0 = FETCH_16((++PC)); PC += 2;	   }
+INSN(ld_XY_WORD ) {Q_0 XY  = FETCH_16((PC += 2));	PC += 2;   }
+INSN(ld_hl_vWORD) {LD_VWORD_COMMON(3); HL  = READ_16(n);   }
+INSN(ld_SS_vWORD) {LD_VWORD_COMMON(4); SS1 = READ_16(n);   }
+INSN(ld_XY_vWORD) {LD_VWORD_COMMON(4); XY  = READ_16(n);   }
+INSN(ld_vWORD_hl) {LD_VWORD_COMMON(3); WRITE_16F(n, HL );  }
+INSN(ld_vWORD_SS) {LD_VWORD_COMMON(4); WRITE_16F(n, SS1);  }
+INSN(ld_vWORD_XY) {LD_VWORD_COMMON(4); WRITE_16F(n, XY );  }
+INSN(ld_sp_hl	) {Q_0 SP = HL; PC++;			   }
+INSN(ld_sp_XY	) {Q_0 SP = XY; PC += 2;		   }
+INSN(push_TT	) {Q_0 PC++;	PUSH(TT);		   }
+INSN(push_XY	) {Q_0 PC += 2; PUSH(XY);		   }
+INSN(pop_TT	) {Q_0 TT = READ_16(SP); SP += 2; PC++;	   }
+INSN(pop_XY	) {Q_0 XY = READ_16(SP); SP += 2; PC += 2; }
 
 
 /* MARK: - Instructions: Exchange, Block Transfer and Search Groups */
@@ -1404,9 +1385,9 @@ INSN(pop_XY	) {Q_0 XY = READ_16(SP); SP += 2; PC += 2; return 10;}
 |  cpdr	       <--ED--><--B9-->	 sz*b**1.  21:44355   16:4435  |
 '=============================================================*/
 
-INSN(ex_de_hl ) {zuint16 t; Q_0 EX(DE, HL ); PC++;			     return 4;}
-INSN(ex_af_af_) {zuint16 t; Q_0 EX(AF, AF_); PC++;			     return 4;}
-INSN(exx      ) {zuint16 t; Q_0 EX(BC, BC_); EX(DE, DE_); EX(HL, HL_); PC++; return 4;}
+INSN(ex_de_hl ) {zuint16 t; Q_0 EX(DE, HL ); PC++;			     }
+INSN(ex_af_af_) {zuint16 t; Q_0 EX(AF, AF_); PC++;			     }
+INSN(exx      ) {zuint16 t; Q_0 EX(BC, BC_); EX(DE, DE_); EX(HL, HL_); PC++; }
 INSN(ex_vsp_hl) {EX_VSP(HL, PC++   );						      }
 INSN(ex_vsp_XY) {EX_VSP(XY, PC += 2);						      }
 INSN(ldi      ) {LDX (++);							      }
@@ -1438,15 +1419,15 @@ INSN(cpdr     ) {CPXR(--);							      }
 | (|) The flag is explained in table U/V.			     |
 '===================================================================*/
 
-INSN(U_a_K	   ) {U0(K0); PC++;							return	4;}
-INSN(U_a_P	   ) {U1(P ); PC += 2;							return	4;}
-INSN(U_a_BYTE	   ) {U0(FETCH((PC += 2) - 1));						return	7;}
-INSN(U_a_vhl	   ) {U0(READ(HL)); PC++;						return	7;}
-INSN(U_a_vXYpOFFSET) {U1(READ(FETCH_XY_EA((PC += 3) - 1)));				return 15;}
-INSN(V_J	   ) {zuint8 *j = &J0; *j = V0(*j); PC++;				return	4;}
-INSN(V_O	   ) {zuint8 *o = &O;  *o = V1(*o); PC += 2;				return	4;}
-INSN(V_vhl	   ) {PC++; WRITE(HL, V0(READ(HL)));					return 11;}
-INSN(V_vXYpOFFSET  ) {zuint16 ea = FETCH_XY_EA((PC += 3) - 1); WRITE(ea, V1(READ(ea))); return 19;}
+INSN(U_a_K	   ) {U0(K0); PC++;							}
+INSN(U_a_P	   ) {U1(P ); PC += 2;							}
+INSN(U_a_BYTE	   ) {U0(FETCH((PC += 2) - 1));						}
+INSN(U_a_vhl	   ) {U0(READ(HL)); PC++;						}
+INSN(U_a_vXYpOFFSET) {U1(READ(FETCH_XY_EA((PC += 3) - 1)));				}
+INSN(V_J	   ) {zuint8 *j = &J0; *j = V0(*j); PC++;				}
+INSN(V_O	   ) {zuint8 *o = &O;  *o = V1(*o); PC += 2;				}
+INSN(V_vhl	   ) {PC++; WRITE(HL, V0(READ(HL)));					}
+INSN(V_vXYpOFFSET  ) {zuint16 ea = FETCH_XY_EA((PC += 3) - 1); WRITE(ea, V1(READ(ea))); }
 
 
 /* MARK: - Instructions: General-Purpose Arithmetic and CPU Control Groups */
@@ -1470,10 +1451,10 @@ INSN(V_vXYpOFFSET  ) {zuint16 ea = FETCH_XY_EA((PC += 3) - 1); WRITE(ea, V1(READ
 | (-) The instruction has undocumented opcodes.	   |
 '=================================================*/
 
-INSN(nop ) {Q_0 PC++;		 return 4;}
-INSN(im_0) {Q_0 IM = 0; PC += 2; return 8;}
-INSN(im_1) {Q_0 IM = 1; PC += 2; return 8;}
-INSN(im_2) {Q_0 IM = 2; PC += 2; return 8;}
+INSN(nop ) {Q_0 PC++;		 }
+INSN(im_0) {Q_0 IM = 0; PC += 2; }
+INSN(im_1) {Q_0 IM = 1; PC += 2; }
+INSN(im_2) {Q_0 IM = 2; PC += 2; }
 
 
 INSN(daa)
@@ -1506,7 +1487,6 @@ INSN(daa)
 #	endif
 
 	PC++;
-	return 4;
 	}
 
 
@@ -1517,7 +1497,6 @@ INSN(cpl)
 		HF | NF;	   /* HF, NF = 1	       */
 
 	PC++;
-	return 4;
 	}
 
 
@@ -1535,7 +1514,6 @@ INSN(neg)
 
 	A = t;
 	PC += 2;
-	return 8;
 	}
 
 
@@ -1571,7 +1549,6 @@ INSN(ccf)
 		(F_C << 4)); /* HF = CFi */
 			     /* NF = 0	 */
 	PC++;
-	return 4;
 	}
 
 
@@ -1589,7 +1566,6 @@ INSN(scf)
 		CF; /* CF = 1	  */
 		    /* HF, NF = 0 */
 	PC++;
-	return 4;
 	}
 
 
@@ -1626,32 +1602,32 @@ INSN(halt)
 			Q_0
 			PC++;
 
-			if ((self->cycles += 4) >= self->cycle_limit)
+			if ((z80machine.cpu.cycles += 4) >= z80machine.cpu.cycle_limit)
 				{
 				RESUME = Z80_RESUME_HALT;
-				return 0;
+				return;
 				}
 
-			if (REQUEST) return 0;
+			if (REQUEST) return;
 			RESUME = Z80_RESUME_HALT;
 			}
 
 		HALT_LINE = 1;
 
-		if (self->halt != Z_NULL)
+		if (z80machine.cpu.halt != Z_NULL)
 			{
-			self->halt(CONTEXT, 1);
-			if (self->cycles >= self->cycle_limit) return 0;
+			z80machine.cpu.halt(1);
+			if (z80machine.cpu.cycles >= z80machine.cpu.cycle_limit) return;
 			}
 		}
 
-	if (self->nop == Z_NULL || (OPTIONS & Z80_OPTION_HALT_SKIP))
+	if (z80machine.cpu.nop == Z_NULL || (OPTIONS & Z80_OPTION_HALT_SKIP))
 		{
-		zusize nop_cycles = self->cycle_limit - self->cycles;
+		zusize nop_cycles = z80machine.cpu.cycle_limit - z80machine.cpu.cycles;
 
 		nop_cycles += (4 - (nop_cycles & 3)) & 3;
 		R += (zuint8)(nop_cycles >> 2);
-		self->cycles += nop_cycles;
+		z80machine.cpu.cycles += nop_cycles;
 		}
 
 #	ifdef Z80_WITH_SPECIAL_RESET
@@ -1660,8 +1636,8 @@ INSN(halt)
 
 			do	{
 				R++;
-				opcode = self->nop(CONTEXT, PC);
-				self->cycles += 4;
+				opcode = z80machine.cpu.nop(CONTEXT, PC);
+				z80machine.cpu.cycles += 4;
 
 				if (REQUEST)
 					{
@@ -1671,12 +1647,12 @@ INSN(halt)
 						{
 						HALT_LINE = 0;
 
-						if (self->halt != Z_NULL)
-							self->halt(CONTEXT, Z80_HALT_EXIT_EARLY);
+						if (z80machine.cpu.halt != Z_NULL)
+							z80machine.cpu.halt(CONTEXT, Z80_HALT_EXIT_EARLY);
 
 						if ((DATA[0] = opcode) != 0x76)
 							{
-							self->cycles -= 4;
+							z80machine.cpu.cycles -= 4;
 							PC--;
 							return insn_table[opcode](self);
 							}
@@ -1685,7 +1661,7 @@ INSN(halt)
 					return 0;
 					}
 				}
-			while (self->cycles < self->cycle_limit);
+			while (z80machine.cpu.cycles < z80machine.cpu.cycle_limit);
 
 			DATA[2] = opcode;
 			}
@@ -1693,19 +1669,18 @@ INSN(halt)
 #	else
 		else do	{
 			R++;
-			(void)self->nop(CONTEXT, PC);
-			self->cycles += 4;
+			(void)z80machine.cpu.nop(PC);
+			z80machine.cpu.cycles += 4;
 
 			if (REQUEST)
 				{
 				RESUME = 0;
-				return 0;
+				return;
 				}
 			}
-		while (self->cycles < self->cycle_limit);
+		while (z80machine.cpu.cycles < z80machine.cpu.cycle_limit);
 #	endif
 
-	return 0;
 	}
 
 
@@ -1715,7 +1690,6 @@ INSN(di)
 	IFF1 = IFF2 = 0;
 	REQUEST &= ~(zuint8)Z80_REQUEST_INT;
 	PC++;
-	return 4;
 	}
 
 
@@ -1725,7 +1699,6 @@ INSN(ei)
 	IFF1 = IFF2 = 1;
 	if (INT_LINE) REQUEST |= Z80_REQUEST_INT;
 	PC++;
-	return 4;
 	}
 
 
@@ -1748,10 +1721,10 @@ INSN(add_hl_SS) {ADD_16(HL, SS0, PC++);		}
 INSN(adc_hl_SS) {ADC_SBC_HL_SS(+, ~ss, Z_EMPTY);}
 INSN(sbc_hl_SS) {ADC_SBC_HL_SS(-,  ss, | NF   );}
 INSN(add_XY_WW) {ADD_16(XY, WW, PC += 2);	}
-INSN(inc_SS   ) {Q_0 (SS0)++; PC++;    return 6;}
-INSN(inc_XY   ) {Q_0 XY++;    PC += 2; return 6;}
-INSN(dec_SS   ) {Q_0 (SS0)--; PC++;    return 6;}
-INSN(dec_XY   ) {Q_0 XY--;    PC += 2; return 6;}
+INSN(inc_SS   ) {Q_0 (SS0)++; PC++;    }
+INSN(inc_XY   ) {Q_0 XY++;    PC += 2; }
+INSN(dec_SS   ) {Q_0 (SS0)--; PC++;    }
+INSN(dec_XY   ) {Q_0 XY--;    PC += 2; }
 
 
 /* MARK: - Instructions: Rotate and Shift Group */
@@ -1774,14 +1747,14 @@ INSN(dec_XY   ) {Q_0 XY--;    PC += 2; return 6;}
 | (*) Undocumented instruction.						   |
 '=========================================================================*/
 
-INSN(rlca	   ) {A = ROL(A); FLAGS = F_SZP | (A & YXCF); PC++;	 return	 4;}
+INSN(rlca	   ) {A = ROL(A); FLAGS = F_SZP | (A & YXCF); PC++;}
 INSN(rla	   ) {RXA(A >> 7, <<, F_C);					   }
-INSN(rrca	   ) {A = ROR(A); FLAGS = F_SZP | A_YX | (A >> 7); PC++; return	 4;}
+INSN(rrca	   ) {A = ROR(A); FLAGS = F_SZP | A_YX | (A >> 7); PC++;}
 INSN(rra	   ) {RXA(A & 1, >>, (F << 7));					   }
-INSN(G_K	   ) {zuint8 *k = &K1; *k = G1(*k);			 return	 8;}
-INSN(G_vhl	   ) {WRITE(HL, G1(READ(HL)));				 return 15;}
-INSN(G_vXYpOFFSET  ) {zuint16 ea = MEMPTR; WRITE(ea,	  G3(READ(ea))); return 19;}
-INSN(G_vXYpOFFSET_K) {zuint16 ea = MEMPTR; WRITE(ea, K3 = G3(READ(ea))); return 19;}
+INSN(G_K	   ) {zuint8 *k = &K1; *k = G1(*k);			 }
+INSN(G_vhl	   ) {WRITE(HL, G1(READ(HL)));				 }
+INSN(G_vXYpOFFSET  ) {zuint16 ea = MEMPTR; WRITE(ea,	  G3(READ(ea)));}
+INSN(G_vXYpOFFSET_K) {zuint16 ea = MEMPTR; WRITE(ea, K3 = G3(READ(ea)));}
 INSN(rld	   ) {RXD(<< 4, & 0xF, >> 4);					   }
 INSN(rrd	   ) {RXD(>> 4, << 4, & 0xF);					   }
 
@@ -1806,10 +1779,10 @@ INSN(rrd	   ) {RXD(>> 4, << 4, & 0xF);					   }
 |    T-states of the instruction.					     |
 '===========================================================================*/
 
-INSN(M_N_K	     ) {zuint8 *k = &K1; *k = M1(*k);			   return  8;}
-INSN(M_N_vhl	     ) {WRITE(HL, M1(READ(HL)));			   return 15;}
-INSN(M_N_vXYpOFFSET  ) {zuint16 ea = MEMPTR; WRITE(ea,	    M3(READ(ea))); return 19;}
-INSN(M_N_vXYpOFFSET_K) {zuint16 ea = MEMPTR; WRITE(ea, K3 = M3(READ(ea))); return 19;}
+INSN(M_N_K	     ) {zuint8 *k = &K1; *k = M1(*k);			   }
+INSN(M_N_vhl	     ) {WRITE(HL, M1(READ(HL)));			   }
+INSN(M_N_vXYpOFFSET  ) {zuint16 ea = MEMPTR; WRITE(ea,	    M3(READ(ea)));}
+INSN(M_N_vXYpOFFSET_K) {zuint16 ea = MEMPTR; WRITE(ea, K3 = M3(READ(ea)));}
 
 
 INSN(bit_N_K)
@@ -1829,7 +1802,6 @@ INSN(bit_N_K)
 		HF		   | /* HF = 1			   */
 		F_C;		     /* CF unchanged		   */
 				     /* NF = 0			   */
-	return 8;
 	}
 
 
@@ -1859,7 +1831,6 @@ INSN(bit_N_vhl)
 		HF		   | /* HF = 1				 */
 		F_C;		     /* CF unchanged			 */
 				     /* NF = 0				 */
-	return 12;
 	}
 
 
@@ -1872,7 +1843,6 @@ INSN(bit_N_vXYpOFFSET)
 		HF		   | /* HF = 1		       */
 		F_C;		     /* CF unchanged	       */
 				     /* NF = 0		       */
-	return 16;
 	}
 
 
@@ -1890,12 +1860,12 @@ INSN(bit_N_vXYpOFFSET)
 |  djnz OFFSET	<--10--><OFFSET>	  ........  13:535  8:53  |
 '================================================================*/
 
-INSN(jp_WORD	) {Q_0 MEMPTR = PC = FETCH_16(PC + 1);			       return 10;}
-INSN(jp_Z_WORD	) {Q_0 MEMPTR = FETCH_16(PC + 1); PC = Z(7) ? MEMPTR : PC + 3; return 10;}
-INSN(jr_OFFSET	) {Q_0 MEMPTR = (PC += 2 + (zsint8)FETCH(PC + 1));	       return 12;}
+INSN(jp_WORD	) {Q_0 MEMPTR = PC = FETCH_16(PC + 1);			       }
+INSN(jp_Z_WORD	) {Q_0 MEMPTR = FETCH_16(PC + 1); PC = Z(7) ? MEMPTR : PC + 3; }
+INSN(jr_OFFSET	) {Q_0 MEMPTR = (PC += 2 + (zsint8)FETCH(PC + 1));	      }
 INSN(jr_Z_OFFSET) {DJNZ_JR_Z(Z(3), 12, 7);						 }
-INSN(jp_hl	) {Q_0 PC = HL;						       return  4;}
-INSN(jp_XY	) {Q_0 PC = XY;						       return  4;}
+INSN(jp_hl	) {Q_0 PC = HL;						       }
+INSN(jp_XY	) {Q_0 PC = XY;						       }
 INSN(djnz_OFFSET) {DJNZ_JR_Z(--B, 13, 8);						 }
 
 
@@ -1916,12 +1886,12 @@ INSN(djnz_OFFSET) {DJNZ_JR_Z(--B, 13, 8);						 }
 |     the Z80 CTC chip. All other opcodes are represented as `retn`.  |
 '====================================================================*/
 
-INSN(call_WORD) {zuint16 pci = PC; Q_0 MEMPTR = PC = FETCH_16(pci + 1); PUSH(pci + 3); return 17;}
-INSN(ret      ) {Q_0 RET;							       return 10;}
-INSN(ret_Z    ) {Q_0 if (Z(7)) {RET; return 11;} PC++;				       return  5;}
+INSN(call_WORD) {zuint16 pci = PC; Q_0 MEMPTR = PC = FETCH_16(pci + 1); PUSH(pci + 3);}
+INSN(ret      ) {Q_0 RET;							       }
+INSN(ret_Z    ) {Q_0 if (Z(7)) {RET; return;} PC++;				       }
 INSN(reti     ) {RETX(reti);									 }
 INSN(retn     ) {RETX(retn);									 }
-INSN(rst_N    ) {zuint16 pci = PC; Q_0 MEMPTR = PC = DATA[0] & 56; PUSH(pci + 1);      return 11;}
+INSN(rst_N    ) {zuint16 pci = PC; Q_0 MEMPTR = PC = DATA[0] & 56; PUSH(pci + 1);      }
 
 
 INSN(call_Z_WORD)
@@ -1935,11 +1905,10 @@ INSN(call_Z_WORD)
 		{
 		PC = MEMPTR;
 		PUSH(pci + 3);
-		return 17;
+		return;
 		}
 
 	PC += 3;
-	return 10;
 	}
 
 
@@ -1975,7 +1944,7 @@ INSN(ini     ) {INX (++, +);					     }
 INSN(inir    ) {INXR(++, +);					     }
 INSN(ind     ) {INX (--, -);					     }
 INSN(indr    ) {INXR(--, -);					     }
-INSN(out_vc_J) {Q_0 PC += 2; MEMPTR = BC + 1; OUT(BC, J1); return 12;}
+INSN(out_vc_J) {Q_0 PC += 2; MEMPTR = BC + 1; OUT(BC, J1);}
 INSN(outi    ) {OUTX(++, +);					     }
 INSN(otir    ) {OTXR(++, +);					     }
 INSN(outd    ) {OUTX(--, -);					     }
@@ -1998,7 +1967,6 @@ INSN(in_a_vBYTE)
 	MEMPTR = (t = (zuint16)(((zuint16)A << 8) | FETCH((PC += 2) - 1))) + 1;
 
 	A = IN(t);
-	return 11;
 	}
 
 
@@ -2010,7 +1978,6 @@ INSN(out_vBYTE_a)
 	MEMPTRL = (t = FETCH((PC += 2) - 1)) + 1;
 	MEMPTRH = A;
 	OUT((zuint16)(((zuint16)A << 8) | t), A);
-	return 11;
 	}
 
 
@@ -2034,13 +2001,12 @@ INSN(out_vc_0)
 	PC += 2;
 	MEMPTR = BC + 1;
 	OUT(BC, (zuint8)0 - (OPTIONS & (zuint8)Z80_OPTION_OUT_VC_255));
-	return 12;
 	}
 
 
 /* MARK: - Instructions: Optimizations */
 
-INSN(nop_nop) {Q_0; PC += 2; return 4;}
+INSN(nop_nop) {Q_0; PC += 2;}
 
 
 /* MARK: - Instruction Function Tables */
@@ -2162,31 +2128,28 @@ static Insn const NOFLASH_CONST(xy_cb_insn_table)[256] = {
 INSN(cb_prefix)
 	{
 	R++;
-	return cb_insn_table[DATA[1] = FETCH_OPCODE((PC += 2) - 1)](self);
+	cb_insn_table[DATA[1] = FETCH_OPCODE((PC += 2) - 1)]();
 	}
 
 
 INSN(ed_prefix)
 	{
 	R++;
-	return ed_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](self);
+	ed_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)]();
 	}
 
 
 #define XY_PREFIX(index_register)				      \
-	zuint8 cycles;						      \
 								      \
-	if ((self->cycles += 4) >= self->cycle_limit)		      \
+	if ((z80machine.cpu.cycles += 4) >= z80machine.cpu.cycle_limit)		      \
 		{						      \
 		RESUME = Z80_RESUME_XY;				      \
-		return 0;					      \
 		}						      \
 								      \
 	R++;							      \
 	XY = index_register;					      \
-	cycles = xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](self); \
-	index_register = XY;					      \
-	return cycles;
+	xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](); \
+	index_register = XY;
 
 
 INSN(dd_prefix) {XY_PREFIX(IX)}
@@ -2202,7 +2165,7 @@ INSN(fd_prefix) {XY_PREFIX(IY)}
 INSN(xy_cb_prefix)
 	{
 	FETCH_XY_EA((PC += 4) - 2);
-	return xy_cb_insn_table[DATA[3] = FETCH(PC - 1)](self);
+	xy_cb_insn_table[DATA[3] = FETCH(PC - 1)]();
 	}
 
 
@@ -2215,41 +2178,42 @@ INSN(xy_cb_prefix)
 
 INSN(xy_xy)
 	{
-	zuint8 cycles;
 	zuint8 first_prefix = DATA[0];
 
 	do	{
 		PC++;
 		DATA[0] = DATA[1];
 
-		if ((self->cycles += 4) >= self->cycle_limit)
+		if ((z80machine.cpu.cycles += 4) >= z80machine.cpu.cycle_limit)
 			{
 			RESUME = Z80_RESUME_XY;
-			return 0;
+			return;
 			}
 
 		R++;
 		}
 	while (IS_XY_PREFIX(DATA[1] = FETCH_OPCODE(PC + 1)));
 
-	if (DATA[0] == first_prefix) return xy_insn_table[DATA[1]](self);
+	if (DATA[0] == first_prefix) {
+		xy_insn_table[DATA[1]]();
+		return;
+	}
 
 	if (first_prefix == 0xFD)
 		{
 		XY = IX;
-		cycles = xy_insn_table[DATA[1]](self);
+		xy_insn_table[DATA[1]]();
 		IX = XY;
 		XY = IY;
 		}
 
 	else	{
 		XY = IY;
-		cycles = xy_insn_table[DATA[1]](self);
+		xy_insn_table[DATA[1]]();
 		IY = XY;
 		XY = IX;
 		}
 
-	return cycles;
 	}
 
 
@@ -2263,15 +2227,15 @@ INSN(xy_xy)
 
 INSN(ed_illegal)
 	{
-	if (self->illegal != Z_NULL)
+	if (z80machine.cpu.illegal != Z_NULL)
 		{
 		DATA[2] = 0;
-		return self->illegal(self, DATA[1]);
+		z80machine.cpu.illegal(DATA[1]);
+		return;
 		}
 
 	Q_0
 	PC += 2;
-	return 8;
 	}
 
 
@@ -2284,7 +2248,7 @@ INSN(ed_illegal)
 INSN(xy_illegal)
 	{
 	PC++;
-	return insn_table[DATA[0] = DATA[1]](self);
+	insn_table[DATA[0] = DATA[1]]();
 	}
 
 
@@ -2292,15 +2256,15 @@ INSN(xy_illegal)
 
 INSN(hook)
 	{
-	if (self->hook == Z_NULL)
+	if (z80machine.cpu.hook == Z_NULL)
 		{
 		Q_0
 		PC++;
-		return 4;
+		return;
 		}
 
-	return ((DATA[0] = self->hook(CONTEXT, PC)) != Z80_HOOK)
-		? insn_table[DATA[0]](self) : 0;
+	((DATA[0] = z80machine.cpu.hook(PC)) != Z80_HOOK)
+		? insn_table[DATA[0]]() : 0;
 	}
 
 
@@ -2322,7 +2286,7 @@ INSN(hook)
 |    p. 20.								 |
 '=======================================================================*/
 
-Z80_API void z80_power(Z80 *self, zbool state)
+Z80_API void z80_power(zbool state)
 	{
 	MEMPTR = PC = R = I = IFF1 = IFF2 = IM = Q =
 	DATA[0] = HALT_LINE = INT_LINE = RESUME = REQUEST = 0;
@@ -2349,7 +2313,7 @@ Z80_API void z80_power(Z80 *self, zbool state)
 | 7. Zilog (1978-05). "Z80 Family Program Interrupt Structure, The", p. 8. |
 '=========================================================================*/
 
-Z80_API void z80_instant_reset(Z80 *self)
+Z80_API void z80_instant_reset()
 	{
 	if (HALT_LINE) {EXIT_HALT;}
 
@@ -2364,14 +2328,14 @@ Z80_API void z80_instant_reset(Z80 *self)
 #endif
 
 
-Z80_API void z80_int(Z80 *self, zbool state)
+Z80_API void z80_int(zbool state)
 	{
 	if (!(INT_LINE = state)) REQUEST &= ~(zuint8)Z80_REQUEST_INT;
 	else if (IFF1) REQUEST |= Z80_REQUEST_INT;
 	}
 
 
-Z80_API void z80_nmi(Z80 *self)
+Z80_API void z80_nmi()
 	{REQUEST |= Z80_REQUEST_NMI;}
 
 
@@ -2381,8 +2345,8 @@ Z80_API void z80_nmi(Z80 *self)
 		ZInt16 *xy;
 
 		R7		  = R;
-		self->cycles	  = 0;
-		self->cycle_limit = cycles;
+		z80machine.cpu.cycles	  = 0;
+		z80machine.cpu.cycle_limit = cycles;
 
 		if (RESUME && cycles) switch (RESUME)
 			{
@@ -2393,25 +2357,25 @@ Z80_API void z80_nmi(Z80 *self)
 			case Z80_RESUME_XY:
 			RESUME = 0;
 			R++;
-			XY = (xy = &self->ix_iy[(DATA[0] >> 5) & 1])->uint16_value;
-			self->cycles += xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](self);
+			XY = (xy = &z80machine.cpu.ix_iy[(DATA[0] >> 5) & 1])->uint16_value;
+			z80machine.cpu.cycles += xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](self);
 			xy->uint16_value = XY;
 			break;
 			}
 
-		while (self->cycles < self->cycle_limit)
+		while (z80machine.cpu.cycles < z80machine.cpu.cycle_limit)
 			{
 			R++;
-			self->cycles += insn_table[DATA[0] = FETCH_OPCODE(PC)](self);
+			z80machine.cpu.cycles += insn_table[DATA[0] = FETCH_OPCODE(PC)](self);
 			}
 
 		R = R_ALL;
-		return self->cycles;
+		return z80machine.cpu.cycles;
 		}
 #endif
 
 
-Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
+Z80_API zusize FASTCODE NOFLASH(z80_run)(zusize cycles)
 	{
 	ZInt16 *xy;
 	zuint8 ird;
@@ -2425,8 +2389,8 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 	'=====================================================================*/
 	R7 = R;
 
-	self->cycles	  = 0;
-	self->cycle_limit = cycles;
+	z80machine.cpu.cycles	  = 0;
+	z80machine.cpu.cycle_limit = cycles;
 
 	if (RESUME && cycles) switch (RESUME)
 		{
@@ -2447,22 +2411,22 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 
 					HALT_LINE = 0;
 
-					if (self->halt != Z_NULL)
-						self->halt(CONTEXT, Z80_HALT_EXIT_EARLY);
+					if (z80machine.cpu.halt != Z_NULL)
+						z80machine.cpu.halt(CONTEXT, Z80_HALT_EXIT_EARLY);
 
 					if (IS_XY_PREFIX(DATA[0] = opcode = DATA[2]))
-						self->cycles += insn_table[FETCH_OPCODE(PC)](self);
+						z80machine.cpu.cycles += insn_table[FETCH_OPCODE(PC)](self);
 
 					else if (opcode != 0x76)
 						{
 						PC--;
-						self->cycles += insn_table[opcode](self) - 4;
+						z80machine.cpu.cycles += insn_table[opcode](self) - 4;
 						}
 					}
 #			endif
 			}
 
-		else (void)halt(self);
+		else (void)halt();
 		break;
 
 		/*--------------------------------------------------------------.
@@ -2472,8 +2436,9 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 		case Z80_RESUME_XY:
 		RESUME = 0;
 		R++;
-		XY = (xy = &self->ix_iy[(DATA[0] >> 5) & 1])->uint16_value;
-		self->cycles += xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)](self);
+		XY = (xy = &z80machine.cpu.ix_iy[(DATA[0] >> 5) & 1])->uint16_value;
+		xy_insn_table[DATA[1] = FETCH_OPCODE(PC + 1)]();
+		z80machine.cpu.cycles++;
 		xy->uint16_value = XY;
 		break;
 
@@ -2488,7 +2453,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 #		endif
 		}
 
-	while (self->cycles < self->cycle_limit) /* main execution loop */
+	while (z80machine.cpu.cycles < z80machine.cpu.cycle_limit) /* main execution loop */
 		{
 		if (REQUEST)
 			{
@@ -2553,7 +2518,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				IFF1 = 0;
 				if (HALT_LINE) {EXIT_HALT;}
 				R++;
-				if (self->nmia != Z_NULL) (void)self->nmia(CONTEXT, PC);
+				if (z80machine.cpu.nmia != Z_NULL) (void)z80machine.cpu.nmia(PC);
 				DATA[0] = 0;
 				Q_0
 
@@ -2564,7 +2529,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 #				endif
 
 				MEMPTR = PC = 0x66;
-				self->cycles += 11;
+				z80machine.cpu.cycles++;
 				continue;
 				}
 
@@ -2598,7 +2563,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				DATA[0] != 0xFB &&
 				/* the previous instruction is not `reti/retn`,
 				   or IFF1 has not changed. */
-				(self->data.uint32_value & Z_UINT32_BIG_ENDIAN(Z_UINT32(0xFFC70100)))
+				(z80machine.cpu.data.uint32_value & Z_UINT32_BIG_ENDIAN(Z_UINT32(0xFFC70100)))
 				!=			   Z_UINT32_BIG_ENDIAN(Z_UINT32(0xED450000))
 			)
 				{
@@ -2622,7 +2587,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				'======================================================================*/
 #				ifdef Z80_WITH_ZILOG_NMOS_LD_A_IR_BUG
 					if (	(OPTIONS & Z80_OPTION_LD_A_IR_BUG) &&
-						(self->data.uint16_array[0] & Z_UINT16_BIG_ENDIAN(Z_UINT16(0xFFF7)))
+						(z80machine.cpu.data.uint16_array[0] & Z_UINT16_BIG_ENDIAN(Z_UINT16(0xFFF7)))
 						==			      Z_UINT16_BIG_ENDIAN(Z_UINT16(0xED57))
 					)
 						FLAGS = F & ~(zuint8)PF;
@@ -2641,7 +2606,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				| executed if the interrupt mode is 0.				       |
 				'=====================================================================*/
 				R++;
-				//ird = (self->inta != Z_NULL) ? self->inta(CONTEXT, PC) : 0xFF;
+				//ird = (z80machine.cpu.inta != Z_NULL) ? z80machine.cpu.inta(CONTEXT, PC) : 0xFF;
 				// ird is already set from the moment the INT ack cycle is detected by fetch_opcode_or_detect_interrupt
 
 #				ifdef Z80_WITH_SPECIAL_RESET
@@ -2679,8 +2644,8 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 						| The `Z80::hook` callback is temporarily disabled, as |
 						| traps are ignored during the INT response in mode 0. |
 						'=====================================================*/
-						hook	   = self->hook;
-						self->hook = Z_NULL;
+						hook	   = z80machine.cpu.hook;
+						z80machine.cpu.hook = Z_NULL;
 
 						/*------------------------------------------------------------------------.
 						| The `Z80::fetch` callback is temporarily replaced by a trampoline that  |
@@ -2698,18 +2663,18 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 						'========================================================================*/
 						im0.z80	      = self;
 						im0.context   = CONTEXT;
-						im0.fetch     = self->fetch;
-						im0.read      = self->read;
-						im0.write     = self->write;
-						im0.in	      = self->in;
-						im0.out	      = self->out;
+						im0.fetch     = z80machine.cpu.fetch;
+						im0.read      = z80machine.cpu.read;
+						im0.write     = z80machine.cpu.write;
+						im0.in	      = z80machine.cpu.in;
+						im0.out	      = z80machine.cpu.out;
 						im0.pc	      = PC;
-						self->context = &im0;
-						self->fetch   = (Z80Read )im0_fetch;
-						self->read    = (Z80Read )im0_read;
-						self->write   = (Z80Write)im0_write;
-						self->in      = (Z80Read )im0_in;
-						self->out     = (Z80Write)im0_out;
+						z80machine.cpu.context = &im0;
+						z80machine.cpu.fetch   = (Z80Read )im0_fetch;
+						z80machine.cpu.read    = (Z80Read )im0_read;
+						z80machine.cpu.write   = (Z80Write)im0_write;
+						z80machine.cpu.in      = (Z80Read )im0_in;
+						z80machine.cpu.out     = (Z80Write)im0_out;
 
 						im0_execute:
 
@@ -2726,7 +2691,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 						if (im0_pc_decrement_table[ird])
 							{
 							PC -= im0_pc_decrement_table[ird];
-							self->cycles += 2 + insn_table[ird](self);
+							z80machine.cpu.cycles += 2 + insn_table[ird](self);
 							}
 
 						/* `halt` */
@@ -2740,7 +2705,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 						else if (ird == 0xCB)
 							{
 							R++;
-							self->cycles += 4 + cb_insn_table[DATA[1] = self->inta(im0.context, im0.pc)](self);
+							z80machine.cpu.cycles += 4 + cb_insn_table[DATA[1] = z80machine.cpu.inta(im0.context, im0.pc)](self);
 							}
 
 						/* Instructions with the EDh prefix. */
@@ -2750,41 +2715,41 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 
 							R++;
 
-							if ((insn = ed_insn_table[DATA[1] = ird = self->inta(im0.context, im0.pc)]) != ed_illegal)
+							if ((insn = ed_insn_table[DATA[1] = ird = z80machine.cpu.inta(im0.context, im0.pc)]) != ed_illegal)
 								{
-								im0.ld_i_a   = self->ld_i_a;
-								im0.ld_r_a   = self->ld_r_a;
-								im0.reti     = self->reti;
-								im0.retn     = self->retn;
-								self->ld_i_a = (Z80Notify)im0_ld_i_a;
-								self->ld_r_a = (Z80Notify)im0_ld_r_a;
+								im0.ld_i_a   = z80machine.cpu.ld_i_a;
+								im0.ld_r_a   = z80machine.cpu.ld_r_a;
+								im0.reti     = z80machine.cpu.reti;
+								im0.retn     = z80machine.cpu.retn;
+								z80machine.cpu.ld_i_a = (Z80Notify)im0_ld_i_a;
+								z80machine.cpu.ld_r_a = (Z80Notify)im0_ld_r_a;
 
 #								ifdef Z80_WITH_IM0_RETX_NOTIFICATIONS
-									self->reti = (Z80Notify)im0_reti;
-									self->retn = (Z80Notify)im0_retn;
+									z80machine.cpu.reti = (Z80Notify)im0_reti;
+									z80machine.cpu.retn = (Z80Notify)im0_retn;
 #								else
-									self->reti = Z_NULL;
-									self->retn = Z_NULL;
+									z80machine.cpu.reti = Z_NULL;
+									z80machine.cpu.retn = Z_NULL;
 #								endif
 
 								PC -= ((ird & 0xC7) == 0x43)
 									? 4 /* `ld SS,(WORD)` and `ld (WORD),SS`. */
 									: 2 /* All other instructions. */;
 
-								self->cycles += 4 + insn(self);
+								z80machine.cpu.cycles += 4 + insn(self);
 
-								self->ld_i_a = im0.ld_i_a;
-								self->ld_r_a = im0.ld_r_a;
-								self->reti   = im0.reti;
-								self->retn   = im0.retn;
+								z80machine.cpu.ld_i_a = im0.ld_i_a;
+								z80machine.cpu.ld_r_a = im0.ld_r_a;
+								z80machine.cpu.reti   = im0.reti;
+								z80machine.cpu.retn   = im0.retn;
 								}
 
-							else if (self->illegal == Z_NULL)
-								self->cycles += 4 + 8;
+							else if (z80machine.cpu.illegal == Z_NULL)
+								z80machine.cpu.cycles += 4 + 8;
 
 							else	{
 								DATA[2] = 4;
-								self->cycles += 4 + self->illegal(self, ird);
+								z80machine.cpu.cycles += 4 + z80machine.cpu.illegal(self, ird);
 								}
 							}
 
@@ -2797,7 +2762,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 
 							else	{
 								im0_advance_xy:
-								if ((self->cycles += 6) >= self->cycle_limit)
+								if ((z80machine.cpu.cycles += 6) >= z80machine.cpu.cycle_limit)
 									{
 									RESUME = Z80_RESUME_IM0_XY;
 									goto im0_finalize;
@@ -2806,7 +2771,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 
 							R++;
 
-							if (IS_XY_PREFIX(ird = self->inta(im0.context, im0.pc)))
+							if (IS_XY_PREFIX(ird = z80machine.cpu.inta(im0.context, im0.pc)))
 								{
 								DATA[0] = ird;
 								goto im0_advance_xy;
@@ -2819,8 +2784,8 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 								goto im0_execute;
 								}
 
-							XY = (xy = &self->ix_iy[((DATA[1] = ird) >> 5) & 1])->uint16_value;
-							self->cycles += 2 + insn(self);
+							XY = (xy = &z80machine.cpu.ix_iy[((DATA[1] = ird) >> 5) & 1])->uint16_value;
+							z80machine.cpu.cycles += 2 + insn(self);
 							xy->uint16_value = XY;
 
 							/* Restore PC, except for `jp (XY)`. */
@@ -2828,25 +2793,25 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 							}
 
 						else	{
-							self->cycles += 2 + insn_table[ird](self);
+							z80machine.cpu.cycles += 2 + insn_table[ird](self);
 							PC = im0.pc;
 							}
 
 						im0_finalize:
-						self->context = im0.context;
-						self->fetch   = im0.fetch;
-						self->read    = im0.read;
-						self->write   = im0.write;
-						self->in      = im0.in;
-						self->out     = im0.out;
-						self->hook    = hook;
+						z80machine.cpu.context = im0.context;
+						z80machine.cpu.fetch   = im0.fetch;
+						z80machine.cpu.read    = im0.read;
+						z80machine.cpu.write   = im0.write;
+						z80machine.cpu.in      = im0.in;
+						z80machine.cpu.out     = im0.out;
+						z80machine.cpu.hook    = hook;
 
 						if (HALT_LINE)
 							{
-							if (self->halt != Z_NULL) self->halt(im0.context, 1);
+							if (z80machine.cpu.halt != Z_NULL) z80machine.cpu.halt(im0.context, 1);
 							RESUME = Z80_RESUME_HALT;
 							Q_0
-							self->cycles += 6;
+							z80machine.cpu.cycles += 6;
 							(void)halt(self);
 							}
 
@@ -2857,23 +2822,23 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 							{
 							case 0xC3: /* `jp WORD` */
 							Q_0
-							MEMPTR = PC = int_fetch_16(self);
-							self->cycles += 2 + 10;
+							MEMPTR = PC = int_fetch_16();
+							z80machine.cpu.cycles += 2 + 10;
 							continue;
 
 							case 0xCD: /* `call WORD` */
 							Q_0
-							MEMPTR = int_fetch_16(self);
+							MEMPTR = int_fetch_16();
 							PUSH(PC);
 							PC = MEMPTR;
-							self->cycles += 2 + 17;
+							z80machine.cpu.cycles += 2 + 17;
 							continue;
 
 							default: /* `rst N` is assumed for all other instructions. */
 							Q_0
 							PUSH(PC);
 							MEMPTR = PC = ird & 56;
-							self->cycles += 2 + 11;
+							z80machine.cpu.cycles += 2 + 11;
 							continue;
 							}
 #					endif
@@ -2889,7 +2854,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 					Q_0
 					PUSH(PC);
 					MEMPTR = PC = 0x38;
-					self->cycles += 13;
+					z80machine.cpu.cycles += 13;
 					continue;
 
 					/*---------------------------------------------------------------------.
@@ -2918,7 +2883,7 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 					Q_0
 					PUSH(PC);
 					MEMPTR = PC = READ_16((zuint16)(((zuint16)I << 8) | ird));
-					self->cycles += 19;
+					z80machine.cpu.cycles += 19;
 					continue;
 					}
 				}
@@ -2932,22 +2897,23 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 					| The /HALT line goes low and then high during TLAST if a  |
 					| special RESET is detected during the `halt` instruction. |
 					'=========================================================*/
-					if (DATA[0] == 0x76 && self->halt != Z_NULL)
-						self->halt(CONTEXT, Z80_HALT_CANCEL);
+					if (DATA[0] == 0x76 && z80machine.cpu.halt != Z_NULL)
+						z80machine.cpu.halt(CONTEXT, Z80_HALT_CANCEL);
 
 					R++;
-					if (self->nop != Z_NULL) (void)self->nop(CONTEXT, PC);
+					if (z80machine.cpu.nop != Z_NULL) (void)z80machine.cpu.nop(CONTEXT, PC);
 					DATA[0] = 0;
 					Q_0;
 					PC = 0;
-					self->cycles += 4;
+					z80machine.cpu.cycles += 4;
 					continue;
 					}
 #			endif
 			}
 
 		R++;
-		zuint16 op_or_int = self->fetch_opcode_or_detect_interrupt(CONTEXT, PC);
+		//zuint16 op_or_int = z80machine.cpu.fetch_opcode_or_detect_interrupt(PC);
+		zuint16 op_or_int = machine_cpu_fetch_1st_opcode_or_detect_interrupt_ack(PC);
 		if (op_or_int & (Z80_REQUEST_INT << 8))
 			{
 				// real CPU has made IRQ acknowledge and we have read the DATA bus during the acknowledge
@@ -2956,12 +2922,13 @@ Z80_API zusize FASTCODE NOFLASH(z80_run)(Z80 *self, zusize cycles)
 				R--; // decrement R back to previous value because this was not an opcode fetch cycle actually
 			} else {
 				// real CPU has made normal fetch
-				self->cycles += insn_table[DATA[0] = op_or_int](self);
+				insn_table[DATA[0] = op_or_int]();
+				z80machine.cpu.cycles++;
 			}
 		}
 
 	R = R_ALL; /* Restore R7 bit. */
-	return self->cycles;
+	return z80machine.cpu.cycles;
 	}
 
 

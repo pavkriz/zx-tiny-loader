@@ -24,11 +24,14 @@ void flight_recorder_dump(void) {
             case FR_IO_RD:
                 printf("IO RD:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
-            case FR_FETCH:  
-                printf("FETCH:\t0x%04X = 0x%02X", rec->addr, rec->data);
-                break;
             case FR_FETCH_1:  
                 printf("FETCH1:\t0x%04X = 0x%02X", rec->addr, rec->data);
+                break;
+            case FR_FETCH_2:  
+                printf("FETCH2:\t0x%04X = 0x%02X", rec->addr, rec->data);
+                break;
+            case FR_FETCH_PARAMS:
+                printf("FETCHP:\t0x%04X = 0x%02X", rec->addr, rec->data);
                 break;
             case FR_IRQ:
                 printf("IRQ:\t0x%04X (was PC pushed to SP when IRQ acknowloedged)", rec->addr);
